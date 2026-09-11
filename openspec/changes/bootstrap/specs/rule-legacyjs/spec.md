@@ -16,7 +16,7 @@ The rule SHALL report nothing unless enabled with `-legacyjs.enable`.
 - **THEN** the call is reported
 
 ### Requirement: Every use site of a legacy symbol is reported
-When enabled, the rule SHALL report one diagnostic per use of a symbol in the legacy symbol table: a reference to a legacy type in a declaration, parameter, field, conversion or assertion; a call of a legacy function or option constructor; and a call of a legacy method, identified by the static type of the receiver. The message SHALL be `legacy JetStream API: <qualified symbol>; see the jetstream package`, where the qualified symbol is `nats.<Type>`, `nats.<Func>` or `nats.<Type>.<Method>`.
+When enabled, the rule SHALL report one diagnostic per use of a symbol in the legacy symbol table: a reference to a legacy type in a declaration, parameter, field, conversion or assertion; a call of a legacy function or option constructor; and a call of a legacy method, identified by the type that declares the method (for an interface method reached through an embedding interface, the embedded interface that declares it). The message SHALL be `legacy JetStream API: <qualified symbol>; see the jetstream package`, where the qualified symbol is `nats.<Type>`, `nats.<Func>` or `nats.<Type>.<Method>`.
 
 #### Scenario: Entry point
 - **WHEN** code calls `nc.JetStream()`
@@ -24,7 +24,7 @@ When enabled, the rule SHALL report one diagnostic per use of a symbol in the le
 
 #### Scenario: Method on legacy interface
 - **WHEN** code calls `js.Publish("orders", data)` where `js` is a `nats.JetStreamContext`
-- **THEN** the rule reports `legacy JetStream API: nats.JetStreamContext.Publish; see the jetstream package`
+- **THEN** the rule reports `legacy JetStream API: nats.JetStream.Publish; see the jetstream package`, naming the interface that declares `Publish`
 
 #### Scenario: Type in a declaration
 - **WHEN** code declares `var kv nats.KeyValue` or a struct field of type `nats.JetStreamContext`

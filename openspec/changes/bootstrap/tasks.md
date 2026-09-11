@@ -27,9 +27,9 @@
 
 ## 5. Rule legacyjs
 
-- [ ] 5.1 Write `testdata/legacyjs/` packages with `// want` comments covering every scenario in `rule-legacyjs/spec.md` (entry point, interface method, type in declaration and field, option constructor, `Msg.Ack`, `Subscription.Fetch`, config literal, jetstream twin, header constant, core API); verify the test fails before the analyzer exists
-- [ ] 5.2 Implement `analyzers/legacyjs` with the `enable` flag and ident walk over `TypesInfo.Uses`; verify the test (which sets `enable`) passes and that running without the flag reports nothing
-- [ ] 5.3 Register `legacyjs` in `OptIn()`; verify `go run ./cmd/natsvet -legacyjs.enable ./testdata/legacyjs/...` reports and the same command without the flag reports nothing
+- [x] 5.1 Write `testdata/legacyjs/` packages with `// want` comments covering every scenario in `rule-legacyjs/spec.md` (entry point, interface method, type in declaration and field, option constructor, `Msg.Ack`, `Subscription.Fetch`, config literal, jetstream twin, header constant, core API); verify the test fails before the analyzer exists
+- [x] 5.2 Implement `analyzers/legacyjs` with the `enable` flag and ident walk over `TypesInfo.Uses`; verify the test (which sets `enable`) passes and that running without the flag reports nothing
+- [x] 5.3 Register `legacyjs` in `OptIn()`; verify `go run ./cmd/natsvet -legacyjs.enable ./testdata/legacyjs/...` reports and the same command without the flag reports nothing
 
 ## 6. Corpus gate
 

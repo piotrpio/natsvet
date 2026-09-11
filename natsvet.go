@@ -21,6 +21,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 
 	"github.com/piotrpio/natsvet/analyzers/headerkey"
+	"github.com/piotrpio/natsvet/analyzers/legacyjs"
 )
 
 // Analyzers returns the default-on rules.
@@ -33,7 +34,9 @@ func Analyzers() []*analysis.Analyzer {
 // OptIn returns the rules that report nothing unless enabled with their
 // enable flag.
 func OptIn() []*analysis.Analyzer {
-	return []*analysis.Analyzer{}
+	return []*analysis.Analyzer{
+		legacyjs.Analyzer,
+	}
 }
 
 // All returns every rule, default-on first.
