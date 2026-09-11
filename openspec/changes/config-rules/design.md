@@ -33,7 +33,7 @@
 
 **Corpus.** After all three rules: `make corpus`, triage into `corpus.expected`. Expect natscli to trigger `streamconfig`/`consumerconfig` on its test fixtures if any build intentionally invalid configs; those are `FP` with the reason "test asserts the server rejects this".
 
-**Helpers new vs reused.** New in `natsapi`: `CompositeFields`, `ConstInt`, `ConstDuration`, `ConstBool`, `ConstEnum`, `SliceConstStrings`, the four subject functions, the three KV validators. Promoted because each is used by at least two of the three rules or is a verbatim port of upstream code that must have its own test table. Reused: `IsPkg`, `Callee`, `IsMethod`, `ConstString`. Not promoted: the per-rule `cfg` view and `fields` alias table — they encode rule-specific field knowledge and stay in the rule package.
+**Helpers new vs reused.** New in `natsapi`: `CompositeFields`, `ConstInt`, `ConstDuration`, `ConstBool`, `ConstEnum`, `SliceConstStrings`, the four subject functions, the three KV validators. Promoted because each is used by at least two of the three rules or is a verbatim port of upstream code that must have its own test table. Reused: `IsPkg`, `Callee`, `IsMethod`, `ConstString`. Also promoted, revised during implementation: the constant-only literal view (`natsapi.Fields`: `Str`/`Int`/`Dur`/`Bool`/`Strs`/`SliceLen`/`Durs`/`Enum`/`Ptr`) turned out to contain no rule-specific knowledge once the alias map is passed in, and `consumerconfig` and `streamconfig` would have duplicated ~120 lines. Not promoted: each rule's alias table, check list and mode helpers.
 
 ## Risks / Trade-offs
 

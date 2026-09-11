@@ -13,9 +13,9 @@
 
 ## 3. Rule streamconfig
 
-- [ ] 3.1 Write `testdata/streamconfig/{jetstream,legacy,ok}.go` with one `// want` line per scenario in `rule-streamconfig/spec.md`; verify the test fails before the analyzer exists
-- [ ] 3.2 Implement `analyzers/streamconfig` with checks in `checkStreamCfgLocked` order (name, description, replicas, max age/duplicates, rollup, counters, discard-new-per-subject, delete marker TTL, scheduling, async persist, mirror exclusions, subjects); verify the analysistest passes, including the mixed constant/variable `Subjects` scenario
-- [ ] 3.3 Register `streamconfig` in `Analyzers()`; verify `bin/natsvet ./streamconfig/` from `testdata` prints the expected diagnostics
+- [x] 3.1 Write `testdata/streamconfig/{jetstream,legacy,ok}.go` with one `// want` line per scenario in `rule-streamconfig/spec.md`; verify the test fails before the analyzer exists
+- [x] 3.2 Implement `analyzers/streamconfig` with checks in `checkStreamCfgLocked` order (name, description, replicas, max age/duplicates, rollup, counters, discard-new-per-subject, delete marker TTL, scheduling, async persist, mirror exclusions, subjects); verify the analysistest passes, including the mixed constant/variable `Subjects` scenario
+- [x] 3.3 Register `streamconfig` in `Analyzers()`; verify `bin/natsvet ./streamconfig/` from `testdata` prints the expected diagnostics
 
 ## 4. Rule kvconfig
 

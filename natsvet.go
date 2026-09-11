@@ -23,6 +23,7 @@ import (
 	"github.com/piotrpio/natsvet/analyzers/consumerconfig"
 	"github.com/piotrpio/natsvet/analyzers/headerkey"
 	"github.com/piotrpio/natsvet/analyzers/legacyjs"
+	"github.com/piotrpio/natsvet/analyzers/streamconfig"
 )
 
 // Analyzers returns the default-on rules.
@@ -30,6 +31,7 @@ func Analyzers() []*analysis.Analyzer {
 	return []*analysis.Analyzer{
 		consumerconfig.Analyzer,
 		headerkey.Analyzer,
+		streamconfig.Analyzer,
 	}
 }
 
