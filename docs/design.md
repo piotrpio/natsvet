@@ -1,6 +1,9 @@
 # natsvet — a `go/analysis` linter for nats.go
 
-Status: draft, pitfalls-first scope agreed. Rule list to be honed during implementation.
+Status: living design. Work is planned and tracked as OpenSpec changes under `openspec/`;
+this document is the rationale they refer back to. Rule lists in §3 are derived from the
+nats.go / nats-server source at the commits named in §3 and are re-derived when a rule is
+implemented.
 
 ## 1. Summary
 
@@ -8,6 +11,17 @@ Status: draft, pitfalls-first scope agreed. Rule list to be honed during impleme
 (core, `jetstream`, `micro`). It turns runtime failures and lifecycle mistakes that the
 nats.go maintainers see repeatedly in support into compile-time diagnostics, with
 automatic fixes where the fix is unambiguous.
+
+`github.com/synadia-io/orbit.go` (`natscontext`, `natsext`, `jetstreamext`, `kvcodec`,
+`counters`, `pcgroups`, `natssysclient`) is in scope in three ways, in this order:
+
+1. As a corpus target (§4.3) from v0.1: its per-module `test/` directories are dense,
+   maintainer-written usage of the `jetstream` API, which the rest of the corpus lacks.
+2. As the subject of opt-in "use orbit instead" rules (Tier 3, §3.3), e.g. a hand-rolled
+   scatter-gather that `natsext.RequestMany` replaces.
+3. As an API to lint in its own right (misuse of orbit functions and configs). No concrete
+   rules yet; surveyed after the corpus run. The `natsapi` package matching (§2.4) is
+   keyed by import path so orbit modules can be added without touching existing rules.
 
 It is built on `golang.org/x/tools/go/analysis`, so the same rules run as a standalone
 binary, as a `go vet -vettool`, as a `go fix -fixtool`, and — the eventual distribution
@@ -26,7 +40,11 @@ channel — as a golangci-lint linter.
 
 - Migration from the legacy `nats.JetStreamContext` / `nats.KeyValue` / `nats.ObjectStore`
   API to the `jetstream` package. That is a separate, later rule family (opt-in, big
-  `SuggestedFix`es). Nothing in this phase should make that harder.
+  `SuggestedFix`es). Nothing in this phase should make that harder. The one exception is
+  `legacyjs` (§3.4): an opt-in, report-only inventory of legacy API use that costs almost
+  nothing on top of `natsapi` and is a prerequisite for any migration anyway. nats.go
+  does not mark the legacy API `// Deprecated:` (only "NOTE: ... is part of legacy API"
+  comments), so staticcheck SA1019 never sees it; the rule is not redundant.
 - Anything needing cross-package facts or whole-program analysis.
 - Anything needing runtime configuration knowledge (e.g. "`Ack()` called on a consumer
   whose ack policy is `AckNone`").
@@ -39,11 +57,11 @@ channel — as a golangci-lint linter.
 
 ### 2.1 Repository and module
 
-- Separate repository and module. Working name `github.com/<owner>/natsvet`; intended
-  final home `github.com/nats-io/natsvet` (fallback: a module under
+- Separate repository and module. Initial module path `github.com/piotrpio/natsvet`;
+  intended final home `github.com/nats-io/natsvet` (fallback: a module under
   `github.com/synadia-io/orbit.go`, which already hosts per-directory modules and tooling).
-  Start under a personal account; renaming the module path is free until someone depends
-  on it, and must happen before any announcement or golangci-lint submission.
+  Renaming the module path is free until someone depends on it, and must happen before
+  any announcement or golangci-lint submission.
 - Not inside nats.go: nats.go's production `go.mod` allows no dependencies beyond
   `klauspost/compress`, `nkeys`, `nuid`; the linter does not import nats.go at all
   (analyzers match on package path and identifier through `go/types`); release cadences
@@ -57,6 +75,7 @@ channel — as a golangci-lint linter.
 ```
 natsvet/
   go.mod
+  LICENSE                    // Apache 2.0
   natsvet.go                 // Analyzers() []*analysis.Analyzer, OptIn() []*analysis.Analyzer
   cmd/natsvet/main.go        // multichecker.Main(append(Analyzers(), OptIn()...)...)
   internal/natsapi/          // shared helpers, see 2.4
@@ -70,18 +89,26 @@ natsvet/
     duration/
     ctxdeadline/
     syncsub/
+    nilheader/
     headerkey/
     drain/
     handle/
     msgloop/
     pubasync/
+    legacyjs/                // opt-in, migration inventory
     connopts/                // opt-in
     microhandler/            // opt-in
   testdata/
     go.mod                   // module natsvet/testdata; requires nats.go (real API, see §4)
     go.sum
-    src/... or flat packages // one package per rule, named after the rule
-  scripts/corpus.sh          // runs the binary over pinned real-world repos, see §4.3
+    <rule>/                  // one package per rule, named after the rule
+  scripts/
+    corpus.sh                // runs the binary over pinned real-world repos, see §4.3
+    corpus.txt               // repo, commit, optional path filter
+    corpus.expected          // triaged findings
+  docs/design.md             // this document
+  openspec/                  // change proposals, specs, tasks
+  .github/workflows/ci.yml
   Makefile
   README.md
 ```
@@ -102,25 +129,34 @@ natsvet/
   the intended unit is unknown).
 - Every rule handles both the `jetstream` package types and, where the same field
   exists, the legacy `nats` package types (`nats.ConsumerConfig`, `nats.StreamConfig`,
-  `nats.KeyValueConfig`). Same pitfall, same rule; this is not migration work.
+  `nats.KeyValueConfig`). Same pitfall, same rule; this is not migration work. Field
+  names differ in places (`jetstream.ConsumerConfig.IdleHeartbeat` is
+  `nats.ConsumerConfig.Heartbeat`); the rule maps them, the spec lists both.
+- Every check that mirrors a server or client validation names the function it mirrors
+  (`checkConsumerCfg`, `checkStreamCfgLocked`, `keyValid`, ...) in the rule's spec. When
+  a rule is implemented its check list is re-derived from that function line by line,
+  not copied from this document.
 - No cross-package facts. Each rule reasons only about the package being analyzed.
 - `pass.Module` (module path/version of the analyzed package) is available in recent
   x/tools drivers but is not needed: if an API does not exist in the user's nats.go
   version, their code does not compile and the rule never sees it. Server-side
   validations encoded by rules are long-standing; rules must not reference server or
   client versions.
-- Tier 3 rules are registered but disabled: each declares a boolean flag `enable`
-  (default false) and returns early from `Run` when it is not set. `multichecker`
-  exposes it as `-connopts.enable`. Default-on rules can be disabled the standard way
-  (`-drain=false`).
+- Opt-in rules (`legacyjs` and Tier 3) are registered but disabled: each declares a
+  boolean flag `enable` (default false) and returns early from `Run` when it is not set.
+  `multichecker` exposes it as `-connopts.enable`. Default-on rules can be disabled the
+  standard way (`-drain=false`).
 
 ### 2.4 `internal/natsapi` helpers
 
-Shared, tested independently:
+Shared, tested independently. A helper is added when the first rule needs it, not
+speculatively; the list below is the expected end state.
 
-- `IsPkg(obj types.Object, pkg Pkg) bool` for `Pkg ∈ {Core, JetStream, Micro}` — matches
-  `github.com/nats-io/nats.go`, `.../jetstream`, `.../micro`. Also matches when the
-  package is vendored (compare on path suffix after `vendor/`).
+- `type Pkg string` with constants `Core = "github.com/nats-io/nats.go"`,
+  `JetStream = ".../jetstream"`, `Micro = ".../micro"`; orbit modules
+  (`github.com/synadia-io/orbit.go/<mod>`) are added as further constants when a rule
+  needs them. `IsPkg(obj types.Object, pkg Pkg) bool` matches on the object's package
+  path, also when vendored (compare on the path suffix after `vendor/`).
 - `Callee(pass, call) (*types.Func, ok)` — `typeutil.Callee` wrapper; works for
   interface methods (`jetstream.Consumer` etc. are interfaces).
 - `IsMethod(fn *types.Func, pkg Pkg, recv, name string) bool` — recv is the named type
@@ -131,24 +167,30 @@ Shared, tested independently:
 - `CompositeFields(pass, lit *ast.CompositeLit, pkg Pkg, typeName string) map[string]ast.Expr`
   — returns keyed fields when the literal's type is exactly the named struct (including
   pointer/address-of forms and the legacy twin types).
-- Subject helpers, ported from nats.go and nats-server (`server/sublist.go`):
-  `BadSubject(s) bool` (whitespace or empty token — nats.go `badSubject`),
-  `HasWildcard(s) bool` (a token equal to `*` or `>`), `ValidSubscribeSubject(s) bool`
-  (`>` only as last token), `SubjectIsSubsetMatch(subject, filter string) bool`
-  (used for overlap checks; port `subjectIsSubsetMatch` from nats-server).
-- KV name validation: `validBucketRe = ^[a-zA-Z0-9_-]+$`,
-  `validKeyRe = ^[-/_=\.a-zA-Z0-9]+$`, `validSearchKeyRe = ^[-/_=\.a-zA-Z0-9*]*[>]?$`
-  (copied from nats.go `jetstream/kv.go`), plus the leading/trailing-`.` rule.
-- Known header table: every exported string constant in the `nats` and `jetstream`
-  packages whose value starts with `Nats-`, mapped to the qualified constant name.
-  Generate with a small `go generate` script over the nats.go module in the module
-  cache, or maintain by hand; either way the table lives in one file.
+- Subject helpers, ported from nats-server `server/sublist.go` with its test tables:
+  `IsValidSubject(s) bool` (no empty token, no whitespace, `>` only last),
+  `SubjectIsLiteral(s) bool` (no `*`/`>` token), `SubjectsCollide(a, b) bool`,
+  `SubjectIsSubsetMatch(subject, filter string) bool`. nats.go's own `badSubject` is
+  a subset of `!IsValidSubject`.
+- KV name validation from nats.go `jetstream/kv.go`: `validBucketRe = ^[a-zA-Z0-9_-]+$`,
+  `validKeyRe = ^[-/_=\.a-zA-Z0-9]+$`, `validSearchKeyRe = ^[-/_=\.a-zA-Z0-9*]*[>]?$`,
+  and `keyValid`/`searchKeyValid` (non-empty, no leading or trailing `.`, no `..`).
+  `validBucketRe` also governs `ObjectStoreConfig.Bucket` (`ErrInvalidStoreName`).
+- Known header table: every exported string constant in the `nats`, `jetstream` and
+  `micro` packages whose value starts with `Nats-`, mapped to the qualified constant
+  name(s). Currently 12, 21 and 2 constants respectively; the same header often has a
+  constant in both `nats` (`MsgIdHdr`) and `jetstream` (`MsgIDHeader`). Generated by a
+  `go generate` program that loads the nats.go packages through `go/packages` from the
+  `testdata` module; a test regenerates and diffs, so bumping the pinned nats.go fails
+  the build until the table is regenerated.
 - `EnclosingFunc(pass, node) (ast.Node, *ast.FuncType)` — nearest `FuncDecl`/`FuncLit`.
 - `SingleDefinition(pass, ident) (ast.Expr, bool)` — if the identifier's object is
   assigned exactly once in its enclosing function (`:=`, `=`, or `var x = `), return the
   RHS expression; otherwise false. Used by `syncsub` and `handle`-style rules.
 
 ## 3. Rule catalog
+
+Derived from nats.go `272f938` and nats-server `c16afd1` (both 2026-06-15).
 
 Conventions used below:
 
@@ -166,30 +208,49 @@ Conventions used below:
 Every check here mirrors a validation in nats-server `checkConsumerCfg`
 (`server/consumer.go`); the server rejects the consumer at create/update time, so the
 program fails at runtime with a `JetStreamError`. Fires only when the involved fields
-are constant in the same composite literal.
+are constant in the same composite literal. Checks that depend on the stream config
+(`Replicas` vs stream, retention policy, `ConsumerLimits`) or on server/account limits
+are out of scope: the rule cannot see them.
 
 - **Hooks**: composite literals of `jetstream.ConsumerConfig`, `jetstream.OrderedConsumerConfig`
-  (subset of fields), `nats.ConsumerConfig`.
-- **Detect** (each is its own diagnostic; "pull" = no `DeliverSubject` field or it is `""`):
-  1. `FilterSubject` non-empty and `FilterSubjects` non-empty → both set.
-  2. `FilterSubjects` slice literal containing a constant `""`.
-  3. `FilterSubjects` slice literal with two constant elements where either is a subset
-     match of the other (`SubjectIsSubsetMatch` both directions) → overlapping filters.
-  4. `MaxAckPending > 0` and `AckPolicy == AckNonePolicy`.
-  5. pull and `Heartbeat > 0` → heartbeat is a pull-request option, not a config field.
-  6. pull and `RateLimit > 0`.
-  7. push (`DeliverSubject` constant non-empty) and `MaxWaiting != 0`.
-  8. `BackOff` slice literal with `len > MaxDeliver` when `MaxDeliver` is a constant `> 0`.
-     (Server treats `MaxDeliver == 0` as unlimited; skip when unset, 0, or -1.)
-  9. `DeliverPolicy` vs start options (server `badStart`/`notSet`):
-     `DeliverAll`/`DeliverLast`/`DeliverNew`/`DeliverLastPerSubject` with `OptStartSeq > 0`
-     or `OptStartTime` present and not `nil`; `DeliverByStartSequence` without
-     `OptStartSeq > 0` or with `OptStartTime`; `DeliverByStartTime` without `OptStartTime`
-     or with `OptStartSeq != 0`. When `DeliverPolicy` is absent it is `DeliverAll`.
-  10. `DeliverLastPerSubject` with neither `FilterSubject` nor `FilterSubjects`.
-  11. `Name` or `Durable` constant containing any of `.`, `*`, `>` (server: "durable name
-      can not contain '.', '*', '>'"), or whitespace.
-  12. `MaxRequestExpires` constant in `(0, 1ms)`.
+  (subset of fields), `nats.ConsumerConfig`. Field names below are the `jetstream` ones;
+  `nats.ConsumerConfig.Heartbeat` is `jetstream.ConsumerConfig.IdleHeartbeat`.
+- **Detect**, in `checkConsumerCfg` order (each is its own diagnostic; "push" =
+  `DeliverSubject` constant non-empty, "pull" = field absent or constant `""`):
+  1. `Name` or `Durable` non-empty and failing `isValidAssetName`: contains any of
+     `.`, `*`, `>`, `\`, `/` or whitespace (` \t\r\n\f`).
+  2. `Replicas < 0`.
+  3. Any `BackOff` element `< 0`; `AckWait < 0`.
+  4. `len(BackOff) > MaxDeliver` when `BackOff` is a slice literal and `MaxDeliver` is a
+     constant `> 0`. (Server defaults `MaxDeliver` `0` to `-1` = unlimited before this
+     check; skip when unset, `0`, or `-1`.)
+  5. `len(Description) > 4096` (`JSMaxDescriptionLen`).
+  6. push: `DeliverSubject` not a literal subject (contains a `*`/`>` token) or failing
+     `IsValidSubject`; `MaxWaiting != 0`; `MaxAckPending > 0 && AckPolicy == AckNonePolicy`
+     (push only); `IdleHeartbeat` in `(0, 100ms)`.
+  7. pull: `RateLimit > 0`; `MaxWaiting < 0`; `IdleHeartbeat > 0` (heartbeat is a
+     pull-request option, not a config field); `FlowControl`; `MaxRequestBatch < 0`;
+     `MaxRequestExpires` in `(0, 1ms)`.
+  8. `FilterSubject` non-empty and `FilterSubjects` non-empty.
+  9. `FilterSubject` failing `IsValidSubject`; a `FilterSubjects` element that is `""` or
+     fails `IsValidSubject`.
+  10. Two elements of `FilterSubjects` (or `FilterSubject` and an element) where one is a
+      subset match of the other (`SubjectIsSubsetMatch`, both directions).
+  11. `DeliverPolicy` vs start options (server `badStart`/`notSet`):
+      `DeliverAll` (also when the field is absent), `DeliverLast`, `DeliverNew`,
+      `DeliverLastPerSubject` with `OptStartSeq > 0` or `OptStartTime` present and not
+      `nil`; `DeliverByStartSequence` with `OptStartSeq` absent or `0`, or with
+      `OptStartTime`; `DeliverByStartTime` with `OptStartTime` absent or `nil`, or with
+      `OptStartSeq != 0`.
+  12. `DeliverLastPerSubject` with neither `FilterSubject` nor `FilterSubjects`.
+  13. `SampleFrequency` constant that, after trimming a trailing `%`, is not a
+      non-negative integer.
+  14. `FlowControl` and `IdleHeartbeat` absent or `0`.
+  15. `Durable` and `Name` both non-empty constants and different.
+  16. `PriorityPolicy != PriorityNone` with `DeliverSubject` set, or with `PriorityGroups`
+      empty, or with an element that is `""` or fails the server's `validGroupName`;
+      `PriorityPolicy` absent or `PriorityNone` with `PriorityGroups` non-empty or
+      `PinnedTTL > 0`.
 - **Message**: `consumer config: <server's wording>`, e.g.
   `consumer config: FilterSubject and FilterSubjects cannot both be set`.
 - **Fix**: none. (Which field the user meant is ambiguous.)
@@ -197,23 +258,42 @@ are constant in the same composite literal.
   variable is treated as unknown, which disables any check involving it.
 - **Tests**: one positive and one negative case per check; a literal with all fields
   from variables produces nothing; pointer literal `&jetstream.ConsumerConfig{...}`;
-  legacy `nats.ConsumerConfig` twin.
+  legacy `nats.ConsumerConfig` twin; `OrderedConsumerConfig` for checks 9-12.
 
 #### `streamconfig`
 
-Mirrors nats-server `checkStreamCfg` (`server/stream.go`). Same constant-only policy.
+Mirrors nats-server `checkStreamCfgLocked` (`server/stream.go`). Same constant-only
+policy. Checks inside nested `Mirror`/`Sources`/`SubjectTransform`/`RePublish` literals
+and checks against account limits or other streams are out of scope for now.
 
-- **Hooks**: composite literals of `jetstream.StreamConfig`, `nats.StreamConfig`.
-- **Detect**:
-  1. `Name` empty, or containing any of `.`, `*`, `>`, `\`, `/`, or whitespace.
-  2. `Replicas` constant `> 5`.
-  3. `MaxAge` constant negative, or in `(0, 100ms)`.
-  4. `Duplicates` constant negative, in `(0, 100ms)`, or `> MaxAge` when both constant
-     and `MaxAge > 0`.
-  5. `Mirror` present (non-nil) and `Subjects` non-empty; `Mirror` present and `Sources`
-     non-empty.
-  6. `Subjects` slice literal with two equal constant elements, or an element that
-     fails `BadSubject`, or a `>` token not in last position.
+- **Hooks**: composite literals of `jetstream.StreamConfig`, `nats.StreamConfig`. Field
+  names below are the `jetstream` ones (`MaxMsgsPerSubject`, `DiscardNewPerSubject`).
+- **Detect**, in server order (absent enum fields take the server default: `Retention`
+  `LimitsPolicy`, `Discard` `DiscardOld`, `Storage` `FileStorage`, `Replicas` `1`):
+  1. `Name` empty, failing `isValidAssetName` (see `consumerconfig` 1), or longer than
+     255 (`JSMaxNameLen`).
+  2. `len(Description) > 4096`.
+  3. `Replicas > 5` (`StreamMaxReplicas`) or `< 0`.
+  4. `MaxAge < 0`, or in `(0, 100ms)`.
+  5. `Duplicates < 0`; in `(0, 100ms)`; or `> MaxAge` when both constant and
+     `MaxAge > 0`. (`Duplicates` absent or `0` is defaulted, never an error.)
+  6. `DenyPurge` and `AllowRollup`.
+  7. `AllowMsgCounter` with `Discard == DiscardNew`, `AllowMsgTTL`, `AllowMsgSchedules`,
+     or `Retention != LimitsPolicy`.
+  8. `DiscardNewPerSubject` with `Discard != DiscardNew`, or with `MaxMsgsPerSubject`
+     absent or `<= 0`.
+  9. `SubjectDeleteMarkerTTL < 0`, or in `(0, 1s)`.
+  10. `AllowMsgSchedules` with `Discard == DiscardNew`, or with `Sources` non-empty.
+  11. `PersistMode == AsyncPersistMode` with `Storage != FileStorage`, `Replicas > 1`, or
+      `AllowAtomicPublish`.
+  12. `Mirror` present (non-nil) with any of: `FirstSeq > 0`, `Subjects` non-empty,
+      `Sources` non-empty, `AllowMsgCounter`, `AllowAtomicPublish`, `AllowBatchPublish`,
+      `AllowMsgSchedules`, `SubjectDeleteMarkerTTL > 0`.
+  13. `Subjects` slice literal: an element failing `IsValidSubject`; two equal elements;
+      two elements where `SubjectsCollide`; an element equal to `>` without `NoAck` or
+      with `Replicas != 1`; an element colliding with `$JS.>`, `$JSC.>`, `$NRG.>` (unless
+      a subset of `$JS.EVENT.>`) or `$SYS.>` (unless a subset of `$SYS.ACCOUNT.>`)
+      without `NoAck`.
 - **Message**: `stream config: <server's wording>`.
 - **Fix**: none.
 - **FP**: none by construction.
@@ -229,17 +309,19 @@ Client-side validations in nats.go `jetstream/kv.go` that return `ErrInvalidBuck
   `jetstream.KeyValue` / `nats.KeyValue` that take a key: `Get`, `GetRevision`, `Put`,
   `PutString`, `Create`, `Update`, `Delete`, `Purge`, `History`, `Watch`,
   `WatchFiltered` (each element), and `ListKeysFiltered`.
-- **Detect**:
-  1. `Bucket` constant not matching `validBucketRe`.
+- **Detect** (mirrors `jetstream/kv.go` `CreateKeyValue`, `keyValid`, `searchKeyValid`
+  and `jetstream/object.go` `CreateObjectStore`):
+  1. `Bucket` constant not matching `validBucketRe` (`ErrInvalidBucketName`,
+     `ErrInvalidStoreName`).
   2. `History` constant `> 64` (`jetstream.KeyValueMaxHistory`) or `< 0`.
-  3. Key constant failing `validKeyRe` (or `validSearchKeyRe` for `Watch*`/`ListKeysFiltered`),
-     or starting/ending with `.`.
+  3. Key constant that is empty, starts or ends with `.`, contains `..`, or fails
+     `validKeyRe` (`validSearchKeyRe` for `Watch*`/`ListKeysFiltered`).
 - **Message**: `invalid KV key "foo bar": keys may only contain [-/_=.a-zA-Z0-9]`;
   `KV history 100 exceeds the maximum of 64`; `invalid bucket name "my.bucket"`.
 - **Fix**: none.
 - **FP**: none by construction.
 - **Tests**: valid/invalid bucket; history 64 (ok) and 65; keys with space, leading dot,
-  wildcard in `Put` (bad) vs wildcard in `Watch` (ok).
+  `a..b`, wildcard in `Put` (bad) vs wildcard in `Watch` (ok).
 
 #### `subject`
 
@@ -252,12 +334,13 @@ Client-side validations in nats.go `jetstream/kv.go` that return `ErrInvalidBuck
   / `Group.AddEndpoint`; `StreamConfig.Subjects` elements and `ConsumerConfig.FilterSubject(s)`
   are covered by their config rules, not here.
 - **Detect**:
-  1. Any constant subject failing `BadSubject` (nats.go returns `ErrBadSubject` at call time).
+  1. Any constant subject failing `IsValidSubject`: empty or whitespace token, or `>`
+     not in last position (nats.go returns `ErrBadSubject` at call time for the token
+     cases; the server rejects the `>` case).
   2. Publish-type calls (`Publish*`, `Request*`, `Msg.Subject` used in a publish,
-     jetstream `Publish*`) whose subject `HasWildcard` — the server rejects it only in
-     pedantic mode; otherwise the `*`/`>` are literal tokens and the message reaches no
-     one the user intended.
-  3. Subscribe-type subjects with `>` not in last position.
+     jetstream `Publish*`) whose subject is not `SubjectIsLiteral` — the server rejects
+     it only in pedantic mode; otherwise the `*`/`>` are literal tokens and the message
+     reaches no one the user intended.
 - **Message**: `subject "foo..bar" has an empty token`; `publish subject "orders.*"
   contains a wildcard; wildcards only match in subscriptions`.
 - **Fix**: none.
@@ -275,7 +358,7 @@ Client-side validations in nats.go `jetstream/kv.go` that return `ErrInvalidBuck
   `Conn.FlushTimeout`, options like `nats.Timeout`, `nats.ReconnectWait`,
   `nats.PingInterval`, `jetstream.FetchMaxWait`, `jetstream.PullExpiry`,
   `jetstream.PullHeartbeat`, fields `AckWait`, `Heartbeat`, `InactiveThreshold`,
-  `MaxRequestExpires`, `MaxAge`, `Duplicates`, `TTL`, elements of `BackOff`, and the
+  `MaxRequestExpires`, `IdleHeartbeat`, `MaxAge`, `Duplicates`, `TTL`, elements of `BackOff`, and the
   `nats.Options` struct — without enumerating them.
 - **Detect**: the argument expression is an untyped integer constant (a `BasicLit`, or an
   identifier resolving to an untyped constant, or an arithmetic expression of those with
@@ -310,16 +393,43 @@ Client-side validations in nats.go `jetstream/kv.go` that return `ErrInvalidBuck
 
 - **Hooks**: `nats.Subscription.NextMsg`, `NextMsgWithContext`.
 - **Detect**: the receiver is an identifier with a `SingleDefinition` in the enclosing
-  function whose RHS is a call to `Subscribe`, `QueueSubscribe`, `ChanSubscribe`,
-  `ChanQueueSubscribe`, or `QueueSubscribeSyncWithChan` on a `*nats.Conn`. (`SubscribeSync`
-  and `QueueSubscribeSync` are the sync constructors.) At runtime this returns
-  `ErrSyncSubRequired` on every call.
+  function whose RHS is one of the calls below. Three cases, three messages, per
+  `validateNextMsgState` in nats.go:
+  1. Callback constructors `Subscribe`, `QueueSubscribe` on `*nats.Conn`: `mcb != nil`, so
+     `NextMsg` returns `ErrSyncSubRequired` on every call.
+  2. Channel constructors `ChanSubscribe`, `ChanQueueSubscribe`, `QueueSubscribeSyncWithChan`:
+     nothing rejects the call. `NextMsg` reads from the user's own channel and silently
+     competes with the code ranging over it; delivery accounting for `AutoUnsubscribe`
+     is also double-counted on that path.
+  3. Legacy `nats.JetStreamContext.PullSubscribe`: `NextMsg` returns
+     `ErrTypeSubscription`; `Fetch` is the only way to read.
+  (`SubscribeSync` and `QueueSubscribeSync` are the sync constructors.)
 - **Message**: `NextMsg on a subscription created with Subscribe (callback) always returns
-  ErrSyncSubRequired; use SubscribeSync`.
-- **Fix**: none. (Rewriting to `SubscribeSync` would orphan the callback.)
+  ErrSyncSubRequired; use SubscribeSync`; `NextMsg on a subscription created with
+  ChanSubscribe steals messages from the channel; read the channel or use SubscribeSync`;
+  `NextMsg on a pull subscription returns ErrTypeSubscription; use Fetch`.
+- **Fix**: none. (Rewriting to `SubscribeSync` would orphan the callback or channel.)
 - **FP**: identifiers with more than one assignment are skipped.
-- **Tests**: callback sub + `NextMsg` (bad), chan sub + `NextMsg` (bad), sync sub (ok),
-  sub reassigned twice (ok), sub passed in as a parameter (ok).
+- **Tests**: callback sub (bad), chan sub (bad), pull sub (bad), sync sub (ok), sub
+  reassigned twice (ok), sub passed in as a parameter (ok).
+
+#### `nilheader`
+
+`nats.Header.Set` and `Add` are plain map writes with no nil check (`nats.go`
+`Header.Set`); `Get`, `Values` and `Del` tolerate a nil map. `nats.NewMsg` allocates the
+header, a `nats.Msg` composite literal does not.
+
+- **Hooks**: `Set` and `Add` on `nats.Header` reached through `<ident>.Header`.
+- **Detect**: `<ident>` has a `SingleDefinition` in the enclosing function whose RHS is a
+  `nats.Msg` composite literal (value or `&`) with no `Header` key, and no assignment to
+  `<ident>.Header` occurs in the function before the call.
+- **Message**: `Header.Set on a nats.Msg literal without Header panics (nil map); use
+  nats.NewMsg or set Header: nats.Header{}`.
+- **Fix**: none. (Both fixes are reasonable; the user picks.)
+- **FP**: none by construction; any `Header:` key or later `.Header =` disables it.
+- **Tests**: literal without header + `Set` (bad), `NewMsg` (ok), literal with
+  `Header: nats.Header{}` (ok), literal then `m.Header = ...` then `Set` (ok), `Get` on
+  literal without header (ok).
 
 #### `headerkey`
 
@@ -442,6 +552,34 @@ docs say to use `ClosedHandler` to learn when it finishes.
 - **Message**: `handler path never responds; the requester will time out`.
 - Heuristic; keep opt-in.
 
+#### orbit.go recommendations (future)
+
+Rules that flag a hand-rolled pattern for which an orbit.go module exists, e.g. a
+`Subscribe` on an inbox followed by a timed collection loop → `natsext.RequestMany`;
+manual `nats.Connect` from `~/.config/nats/context` files → `natscontext.Connect`. No
+concrete rules until the corpus run shows the patterns; listed so the tier has a home.
+
+### 3.4 Migration inventory (opt-in via `-legacyjs.enable`)
+
+#### `legacyjs`
+
+Step 0 of the migration family: report, never fix. Answers "how much legacy JetStream API
+does this module use, and where" so the later rewrite family can be sized and so users
+can track their own progress.
+
+- **Hooks**: any use of a type, method, function or option from the legacy API surface:
+  `nats.JetStreamContext`, `nats.JetStream`, `nats.JetStreamManager`, `nats.KeyValue`,
+  `nats.KeyValueManager`, `nats.ObjectStore`, `nats.ObjectStoreManager`,
+  `(*nats.Conn).JetStream`, `nats.SubOpt`, `nats.PubOpt`, `nats.PullOpt`,
+  `nats.JSOpt`, the `nats.ConsumerConfig` / `nats.StreamConfig` / `nats.KeyValueConfig`
+  / `nats.ObjectStoreConfig` types, and `(*nats.Subscription).Fetch` / `FetchBatch`.
+- **Detect**: any identifier whose object is in that set; one diagnostic per use site.
+- **Message**: `legacy JetStream API: nats.JetStreamContext; see the jetstream package`.
+- **Fix**: none.
+- **FP**: none; it reports facts. Off by default because it is an inventory, not a
+  finding.
+- **Tests**: one use of each listed symbol (bad), the `jetstream` twin of each (ok).
+
 ## 4. Testing
 
 ### 4.1 Unit tests per rule
@@ -449,17 +587,14 @@ docs say to use `ClosedHandler` to learn when it finishes.
 `analysistest.Run` / `RunWithSuggestedFixes` against a shared `testdata` directory with
 `// want "..."` comments and `.golden` files for fixes.
 
-Use **module mode** so tests compile against the real nats.go API rather than stubs:
-`analysistest` switches to module mode when `testdata/go.mod` exists (this mode is
-present but documented as provisional in x/tools; verify on the pinned x/tools version).
-It runs with `GOPROXY=off`, so the module must already be in the module cache:
-the Makefile `test` target and CI run `cd testdata && go mod download` first. If module
-mode proves unreliable, fall back to GOPATH-style stubs under `testdata/src/github.com/nats-io/nats.go/...`
-containing only the signatures the rules need — accept that stubs can drift from the
-real API and add a CI job that compiles the stubs' usages against real nats.go.
+Use **module mode** so tests compile against the real nats.go API rather than stubs.
+`analysistest.Run` treats a directory containing `go.mod` as a module root (documented in
+x/tools v0.43 `analysistest.go`; a `go.work` there is honored too). It runs with
+`GOPROXY=off`, so the module must already be in the module cache: the Makefile `test`
+target and CI run `cd testdata && go mod download` first.
 
-Each rule's test package is `testdata/<rule>` (module mode) and is exercised with the
-pattern `natsvet/testdata/<rule>` (or `<rule>` in GOPATH mode).
+Each rule's test package is `testdata/<rule>` and is exercised with the pattern
+`natsvet/testdata/<rule>`.
 
 ### 4.2 Helper tests
 
@@ -469,12 +604,24 @@ constant exported by the pinned nats.go — a test that fails when nats.go adds 
 
 ### 4.3 Corpus run (false-positive gate)
 
-`scripts/corpus.sh` clones pinned commits of real-world users of nats.go — at minimum
-nats.go's own `examples/` and `test/`, `nats-io/natscli`, `nats-io/nack`,
-`synadia-io/nex`, `synadia-io/orbit.go` — and runs `natsvet ./...` over each. Output is
-compared against `scripts/corpus.expected`; every line there was triaged by hand and is
-either a true positive or a documented, accepted false positive. New findings fail the
-job. This runs before every tag and decides Tier 2 defaults (§3.2).
+The only measurement of false-positive rate is running the tool over code we did not
+write to trigger it. `scripts/corpus.sh` clones the pinned commits listed in
+`scripts/corpus.txt` (`<repo url> <commit> [<path filter>]`, cached under a local
+directory), runs `natsvet ./...` with every opt-in rule enabled over each, normalizes
+the output (strips the clone prefix, sorts) and diffs it against
+`scripts/corpus.expected`. Every line in the expected file was triaged by hand and is
+tagged `TP` (a real bug in that repo — README material and an upstream PR) or `FP`
+(an accepted false positive with a one-line reason). Any line not in the file fails the
+job.
+
+Initial corpus: nats.go's own `examples/` and `test/`, `nats-io/natscli`,
+`nats-io/nack`, `synadia-io/nex`, and every per-module `test/` directory of
+`synadia-io/orbit.go`.
+
+The script lands in the bootstrap change and runs after every rule group, not only
+before a tag: the per-rule finding/FP counts decide Tier 2 defaults (§3.2), can demote
+a Tier 1 rule to opt-in, and tell us which rules are worth building next. Pinned commits
+are bumped deliberately: rerun, triage the delta, commit both files.
 
 ### 4.4 CI
 
@@ -483,7 +630,7 @@ job. This runs before every tag and decides Tier 2 defaults (§3.2).
 
 ## 5. Distribution
 
-1. `go install github.com/<owner>/natsvet/cmd/natsvet@latest`, then `natsvet ./...`,
+1. `go install github.com/piotrpio/natsvet/cmd/natsvet@latest`, then `natsvet ./...`,
    `natsvet -fix ./...`, `natsvet -diff ./...` (`multichecker` provides these).
 2. `go vet -vettool=$(which natsvet) ./...` — `multichecker.Main` delegates to
    `unitchecker` when `go vet` invokes it, so the same binary works.
@@ -498,19 +645,32 @@ job. This runs before every tag and decides Tier 2 defaults (§3.2).
 5. gopls cannot load third-party analyzers; in-editor diagnostics come from golangci-lint
    integrations (VS Code Go extension lint tool, GoLand, neovim).
 
-## 6. Delivery phases
+## 6. Delivery
 
-1. **Skeleton**: module, `cmd/natsvet`, `internal/natsapi` with tests, testdata module,
-   CI, README. One rule end-to-end with a fix (`headerkey`) to prove the golden-file and
-   `-fix` paths.
-2. **Tier 1**: remaining eight rules. Run on nats.go's `examples/` and fix whatever it
-   finds there (also a demo beat).
-3. **Corpus gate + v0.1 tag**: `scripts/corpus.sh`, triage, README rule table with
-   before/after snippets.
-4. **Tier 2** behind the corpus gate; decide `handle`/`pubasync` defaults from data.
-5. **golangci-lint**: module plugin config in the repo, then the upstream PR once the
-   module path is final.
-6. Later, separate design: migration rule family (legacy → `jetstream`).
+Work is cut into OpenSpec changes grouped by the helpers the rules share, so each change
+is one reviewable unit and helpers are built once. Specs are one per rule (each Detect
+item a requirement, each test case a scenario, the spec text doubling as the rule `Doc`)
+plus `analyzer-framework` and `testing`.
+
+1. **`bootstrap`**: module, license, `cmd/natsvet`, `internal/natsapi` with only what
+   the two rules below need, testdata module, CI, README skeleton, corpus script with
+   the initial repo list. `headerkey` end-to-end (default-on, `SuggestedFix`, golden
+   file) proves the fix path; `legacyjs` (opt-in) proves the `enable` flag path and is
+   the migration inventory.
+2. **`config-rules`**: `consumerconfig`, `streamconfig`, `kvconfig` — share
+   `CompositeFields`, the subject helpers and the KV regexes. Corpus run and triage
+   close the change.
+3. **`callsite-rules`**: `duration`, `subject`, `ctxdeadline`, `syncsub`, `nilheader`,
+   `drain` — share `Callee`/`IsMethod`/`SingleDefinition`. `duration` and `subject`
+   first: they are the likeliest to fire on the corpus. Corpus run closes the change.
+4. **`corpus-gate-v0.1`**: full triage, `corpus.expected` committed, README rule table
+   with before/after snippets and "found in the wild" examples, v0.1 tag.
+5. **`lifecycle-rules`**: `handle`, `msgloop`, `pubasync`; defaults decided by the
+   corpus numbers.
+6. **`golangci-plugin`**: module plugin config in the repo, then the upstream PR once
+   the module path is final.
+7. Later, separate designs: migration rewrites (legacy → `jetstream`), orbit.go
+   recommendation rules, orbit.go API rules.
 
 ## 7. Code conventions for the implementing repository
 
@@ -526,6 +686,7 @@ job. This runs before every tag and decides Tier 2 defaults (§3.2).
 ## 8. Open questions
 
 1. Final repository home: `nats-io/natsvet` vs a module in `synadia-io/orbit.go`.
+   Decided before any announcement; irrelevant until then.
 2. Whether to ship the `defer nc.Drain()`-in-`main` check at all (§3.2).
 3. Tier 2 defaults (`handle`, `pubasync`) — decided by the corpus run, not now.
 4. Name: `natsvet` for the binary; golangci-lint linter names conventionally end in
@@ -534,3 +695,9 @@ job. This runs before every tag and decides Tier 2 defaults (§3.2).
 5. Whether `headerkey` should also flag a `Get` literal that differs only in case from a
    `Set` literal elsewhere in the same package (needs a package-wide pre-pass; cheap, but
    deferred until there is evidence it happens).
+6. Migration rewrites: every `jetstream` method takes a `context.Context` and no legacy
+   method does, so a rewrite is never a local `SuggestedFix`; it needs per-function
+   reasoning about where a context comes from. Likely a separate `natsvet migrate`
+   driver with a report, not `go fix`. Design when `legacyjs` numbers exist.
+7. Which orbit.go APIs warrant rules of their own (§1, item 3). Survey after the corpus
+   run.
