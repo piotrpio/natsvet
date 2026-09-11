@@ -1,9 +1,9 @@
 ## 1. Shared helpers
 
-- [ ] 1.1 Port `IsValidSubject`, `SubjectIsLiteral`, `SubjectsCollide`, `SubjectIsSubsetMatch` and their tokenizer helpers from nats-server `server/sublist.go` into `internal/natsapi/subject.go`; verify table tests copied from `TestSublistValidSubjects`, `TestSubjectIsLiteral`, `TestIsSubsetMatch` and `TestSublistSubjectCollide` pass unchanged
-- [ ] 1.2 Add `BucketValid`, `KeyValid`, `SearchKeyValid` in `internal/natsapi/kv.go` with the regexes and `.`/`..` rules from `jetstream/kv.go`; verify a table test covers empty, leading/trailing dot, `..`, space, wildcard in key (bad) vs in search key (ok), `>` trailing (ok) vs mid (bad)
-- [ ] 1.3 Add `ConstInt`, `ConstDuration`, `ConstBool`, `SliceConstStrings` (with the `complete` flag) and `ConstEnum` to `internal/natsapi`; verify a `go/types`-driven table test covers literals, named constants, `50 * time.Millisecond`, a mixed slice literal, `nil`, and enum identity across two packages declaring the same constant name
-- [ ] 1.4 Add `TypeRef` and `CompositeFields` to `internal/natsapi`; verify a table test covers `T{}`, `&T{}`, elements of `[]T{{}}` and `[]*T{{}}`, a positional literal (returns not-ok), a same-named type from another package (not-ok), and that the matched `TypeRef` distinguishes two accepted types
+- [x] 1.1 Port `IsValidSubject`, `SubjectIsLiteral`, `SubjectsCollide`, `SubjectIsSubsetMatch` and their tokenizer helpers from nats-server `server/sublist.go` into `internal/natsapi/subject.go`; verify table tests copied from `TestSublistValidSubjects`, `TestSubjectIsLiteral`, `TestIsSubsetMatch` and `TestSublistSubjectCollide` pass unchanged
+- [x] 1.2 Add `BucketValid`, `KeyValid`, `SearchKeyValid` in `internal/natsapi/kv.go` with the regexes and `.`/`..` rules from `jetstream/kv.go`; verify a table test covers empty, leading/trailing dot, `..`, space, wildcard in key (bad) vs in search key (ok), `>` trailing (ok) vs mid (bad)
+- [x] 1.3 Add `ConstInt`, `ConstDuration`, `ConstBool`, `SliceConstStrings` (with the `complete` flag) and `ConstEnum` to `internal/natsapi`; verify a `go/types`-driven table test covers literals, named constants, `50 * time.Millisecond`, a mixed slice literal, `nil`, and enum identity across two packages declaring the same constant name
+- [x] 1.4 Add `TypeRef` and `CompositeFields` to `internal/natsapi`; verify a table test covers `T{}`, `&T{}`, elements of `[]T{{}}` and `[]*T{{}}`, a positional literal (returns not-ok), a same-named type from another package (not-ok), and that the matched `TypeRef` distinguishes two accepted types
 
 ## 2. Rule consumerconfig
 
