@@ -1,32 +1,59 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  natsvet is a golang.org/x/tools/go/analysis linter for code that uses
+  github.com/nats-io/nats.go (core, jetstream, micro) and, later,
+  github.com/synadia-io/orbit.go. Rationale, architecture, rule catalog and
+  delivery order live in docs/design.md; read it before writing any artifact.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+  Stack: Go (version pinned by golang.org/x/tools), module github.com/piotrpio/natsvet.
+  Only production dependency is golang.org/x/tools. nats.go is a test-only dependency,
+  required by the separate testdata module; the linter never imports it and matches
+  nats.go symbols by package path through go/types.
 
-# Per-operation guidance (optional)
-# Add advisory guidance for how apply and archive work should be conducted.
-# This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
+  Structure: one package per rule under analyzers/<rule>, shared helpers in
+  internal/natsapi, one test package per rule under testdata/<rule> exercised with
+  analysistest in module mode, scripts/corpus.sh as the false-positive gate over pinned
+  real-world repositories.
+
+  Conventions (docs/design.md section 7): Apache 2.0 header on every .go file; comments
+  only where they carry information the code does not, rule Doc strings excepted; no
+  version numbers, links or issue references in code comments; `for i := range n` over
+  the three-clause form; table-driven tests; US English; commits signed off with
+  single-line subjects. Diagnostic messages are one sentence, lowercase, no trailing
+  period, and state the runtime consequence.
+
+  Rule policy: default-on rules fire only on constant expressions and must have a
+  false-positive rate a golangci-lint maintainer would accept without argument.
+  SuggestedFixes only when the rewrite is semantically certain. No cross-package facts.
+  Every rule handles both the jetstream types and their legacy nats twins where the
+  same field exists. Opt-in rules declare an `enable` flag defaulting to false.
+
+rules:
+  proposal:
+    - Include a Non-goals section.
+    - State which rules in the change are default-on and which are opt-in.
+    - Name the shared internal/natsapi helpers the change adds or relies on.
+  specs:
+    - One spec per rule, named rule-<ruleid>; framework and testing capabilities get their own specs.
+    - Each Detect item from the rule design is one requirement; each test case is one scenario.
+    - Every requirement that mirrors a nats.go or nats-server validation names the function it mirrors (for example checkConsumerCfg, checkStreamCfgLocked, keyValid, validateNextMsgState).
+    - Every requirement has at least one scenario that must NOT report (a negative case).
+    - Requirements state the diagnostic message template and whether a SuggestedFix is offered.
+    - The spec's purpose paragraph is written to serve verbatim as the analyzer Doc string.
+  design:
+    - Rule check lists are re-derived from the cited nats.go or nats-server source at implementation time, not copied from docs/design.md.
+    - Record which helpers are new versus reused and why a helper is or is not promoted to internal/natsapi.
+  tasks:
+    - For each rule, the testdata package with `// want` comments (and .golden files for fixes) is written and confirmed failing before the analyzer.
+    - Each rule group ends with a corpus run and triage task that updates scripts/corpus.expected.
+    - The last task of every change runs gofmt, go vet, staticcheck, misspell and go test with the testdata download step.
+
+operations:
+  apply:
+    guidance:
+      - Run the rule's analysistest after every analyzer edit; do not batch several rules before testing.
+      - When the corpus run reports a new finding, triage it before adding it to corpus.expected; a finding tagged FP needs a one-line reason.
+  archive:
+    guidance:
+      - Before archiving, confirm the corpus job passes and README rule table lists every rule the change added.
