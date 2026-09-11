@@ -39,7 +39,7 @@
 
 ## 7. CI, README, conventions
 
-- [ ] 7.1 Add `.github/workflows/ci.yml` with the lint/test job on the two newest Go releases (testdata download step first) and a separate corpus job; verify the workflow file passes `actionlint` or a dry parse and the Makefile targets it calls exist
-- [ ] 7.2 Add the orbit.go license header (`// Copyright 2026 Synadia Communications Inc.` + Apache boilerplate) to every `.go` file (including generated and testdata) and a `make lint` check for its first line; verify `make lint` passes
-- [ ] 7.3 Write `README.md` skeleton: purpose, install, the three invocation modes, rule table with `headerkey` and `legacyjs` (summary, default, fix), link to `docs/design.md`; verify the rule table matches `Analyzers()`/`OptIn()`
-- [ ] 7.4 Run `gofmt -l .`, `go vet ./...`, `staticcheck ./...`, `misspell -locale US .`, and `make test` (with the testdata download step); verify all pass with no output from gofmt and misspell
+- [x] 7.1 Add `.github/workflows/ci.yml` with the lint/test job on the two newest Go releases (testdata download step first) and a separate corpus job; verify the workflow file passes `actionlint` or a dry parse and the Makefile targets it calls exist
+- [x] 7.2 Add the orbit.go license header (`// Copyright 2026 Synadia Communications Inc.` + Apache boilerplate) to every `.go` file (including generated and testdata) and a `make lint` check for its first line; verify `make lint` passes
+- [x] 7.3 Write `README.md` skeleton: purpose, install, the three invocation modes, rule table with `headerkey` and `legacyjs` (summary, default, fix), link to `docs/design.md`; verify the rule table matches `Analyzers()`/`OptIn()`
+- [x] 7.4 Run `gofmt -l .`, `go vet ./...`, `staticcheck ./...`, `misspell -locale US .`, and `make test` (with the testdata download step); verify all pass with no output from gofmt and misspell

@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (Go ${{ matrix.go }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ["1.26.x", "1.25.x"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: |
+            go.sum
+            testdata/go.sum
+      - name: Download testdata module
+        run: make testdata-deps
+      - name: Install lint tools
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
+          go install github.com/client9/misspell/cmd/misspell@v0.3.4
+      - name: Lint
+        run: make lint
+      - name: Generated tables are current
+        run: |
+          make generate
+          git diff --exit-code -- internal/natsapi
+      - name: Test
+        run: make test
+
+  corpus:
+    name: corpus
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+      - name: Cache corpus clones
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/natsvet-corpus
+          key: corpus-${{ hashFiles('scripts/corpus.txt') }}
+      - name: Run corpus
+        run: make corpus
