@@ -100,25 +100,34 @@ func run(pass *analysis.Pass) (any, error) {
 	report := func(n ast.Node, msg string) {
 		pass.Report(analysis.Diagnostic{Pos: n.Pos(), End: n.End(), Category: name, Message: msg})
 	}
-	ins.Preorder([]ast.Node{(*ast.CompositeLit)(nil), (*ast.CallExpr)(nil)}, func(n ast.Node) {
+	assigned := make(map[*ast.BlockStmt]map[string]bool)
+	ins.WithStack([]ast.Node{(*ast.CompositeLit)(nil), (*ast.CallExpr)(nil)}, func(n ast.Node, push bool, stack []ast.Node) bool {
+		if !push {
+			return false
+		}
 		switch n := n.(type) {
 		case *ast.CompositeLit:
-			checkConfig(pass, n, report)
+			body := natsapi.EnclosingFuncBody(stack)
+			if _, seen := assigned[body]; !seen {
+				assigned[body] = natsapi.AssignedFields(body)
+			}
+			checkConfig(pass, n, assigned[body], report)
 		case *ast.CallExpr:
 			checkCall(pass, n, report)
 		}
+		return true
 	})
 	return nil, nil
 }
 
-func checkConfig(pass *analysis.Pass, lit *ast.CompositeLit, report func(ast.Node, string)) {
+func checkConfig(pass *analysis.Pass, lit *ast.CompositeLit, assigned map[string]bool, report func(ast.Node, string)) {
 	fields, _, ok := natsapi.CompositeFields(pass.TypesInfo, lit, configTypes...)
 	if !ok {
 		return
 	}
-	c := natsapi.NewFields(pass.TypesInfo, fields, false, nil)
-	if e, present := c.Expr("Bucket"); present {
-		if b, ok := natsapi.ConstString(pass.TypesInfo, e); ok && !natsapi.BucketValid(b) {
+	c := natsapi.NewFields(pass.TypesInfo, fields, false, nil, assigned)
+	if _, present := c.Expr("Bucket"); present {
+		if b, ok := c.Str("Bucket"); ok && !natsapi.BucketValid(b) {
 			report(lit, bucketMsg(b))
 		}
 	}

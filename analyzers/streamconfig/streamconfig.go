@@ -62,13 +62,21 @@ const (
 
 func run(pass *analysis.Pass) (any, error) {
 	ins := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	ins.Preorder([]ast.Node{(*ast.CompositeLit)(nil)}, func(n ast.Node) {
+	assigned := make(map[*ast.BlockStmt]map[string]bool)
+	ins.WithStack([]ast.Node{(*ast.CompositeLit)(nil)}, func(n ast.Node, push bool, stack []ast.Node) bool {
+		if !push {
+			return false
+		}
 		lit := n.(*ast.CompositeLit)
 		fields, matched, ok := natsapi.CompositeFields(pass.TypesInfo, lit, jsConfig, legacyConfig)
 		if !ok {
-			return
+			return true
 		}
-		c := natsapi.NewFields(pass.TypesInfo, fields, matched == legacyConfig, nil)
+		body := natsapi.EnclosingFuncBody(stack)
+		if _, seen := assigned[body]; !seen {
+			assigned[body] = natsapi.AssignedFields(body)
+		}
+		c := natsapi.NewFields(pass.TypesInfo, fields, matched == legacyConfig, nil, assigned[body])
 		report := func(msg string) {
 			pass.Report(analysis.Diagnostic{
 				Pos:      lit.Pos(),
@@ -80,6 +88,7 @@ func run(pass *analysis.Pass) (any, error) {
 		for _, check := range checks {
 			check(c, report)
 		}
+		return true
 	})
 	return nil, nil
 }

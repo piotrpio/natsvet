@@ -30,28 +30,31 @@ func EnclosingFuncBody(stack []ast.Node) *ast.BlockStmt {
 	return nil
 }
 
-// AssignsField reports whether any assignment statement in body writes to
-// a selector named field (x.field = ..., x.field += ...), on any receiver.
-func AssignsField(body *ast.BlockStmt, field string) bool {
+// AssignedFields returns the names of every selector that an assignment or
+// increment statement in body writes to (x.Field = ..., x.Field += ...,
+// x.Field++), on any receiver. A config literal in such a function may be
+// completed or changed after it is written, so those fields are unknown
+// for every literal in the function.
+func AssignedFields(body *ast.BlockStmt) map[string]bool {
 	if body == nil {
-		return false
+		return nil
 	}
-	found := false
+	fields := make(map[string]bool)
+	add := func(e ast.Expr) {
+		if sel, ok := ast.Unparen(e).(*ast.SelectorExpr); ok {
+			fields[sel.Sel.Name] = true
+		}
+	}
 	ast.Inspect(body, func(n ast.Node) bool {
-		if found {
-			return false
-		}
-		as, ok := n.(*ast.AssignStmt)
-		if !ok {
-			return true
-		}
-		for _, lhs := range as.Lhs {
-			if sel, ok := ast.Unparen(lhs).(*ast.SelectorExpr); ok && sel.Sel.Name == field {
-				found = true
-				return false
+		switch n := n.(type) {
+		case *ast.AssignStmt:
+			for _, lhs := range n.Lhs {
+				add(lhs)
 			}
+		case *ast.IncDecStmt:
+			add(n.X)
 		}
 		return true
 	})
-	return found
+	return fields
 }

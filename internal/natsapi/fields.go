@@ -28,29 +28,53 @@ type Fields struct {
 	Info    *types.Info
 	Fields  map[string]ast.Expr
 	Aliases map[string]string
+	// Assigned holds the fields the enclosing function assigns somewhere
+	// (see AssignedFields); such a field is unknown whether or not the
+	// literal sets it, since the literal may be completed or changed later.
+	Assigned map[string]bool
 }
 
 // NewFields wraps the result of CompositeFields; aliases apply only when
-// the matched type is legacy.
-func NewFields(info *types.Info, fields map[string]ast.Expr, legacy bool, aliases map[string]string) *Fields {
-	f := &Fields{Info: info, Fields: fields}
+// the matched type is legacy; assigned is the enclosing function's
+// AssignedFields, or nil at package level.
+func NewFields(info *types.Info, fields map[string]ast.Expr, legacy bool, aliases map[string]string, assigned map[string]bool) *Fields {
+	f := &Fields{Info: info, Fields: fields, Assigned: assigned}
 	if legacy {
 		f.Aliases = aliases
 	}
 	return f
 }
 
-// Expr returns the field's value expression and whether it is present.
-func (f *Fields) Expr(field string) (ast.Expr, bool) {
+func (f *Fields) name(field string) string {
 	if alias, ok := f.Aliases[field]; ok {
-		field = alias
+		return alias
 	}
-	e, ok := f.Fields[field]
+	return field
+}
+
+// Expr returns the field's value expression and whether it is present in
+// the literal, regardless of later assignments.
+func (f *Fields) Expr(field string) (ast.Expr, bool) {
+	e, ok := f.Fields[f.name(field)]
 	return e, ok
 }
 
+// value returns the field's expression, whether it is present, and whether
+// its value can be known at all (false when the function assigns it).
+func (f *Fields) value(field string) (e ast.Expr, present, known bool) {
+	name := f.name(field)
+	if f.Assigned[name] {
+		return nil, false, false
+	}
+	e, present = f.Fields[name]
+	return e, present, true
+}
+
 func (f *Fields) Str(field string) (string, bool) {
-	e, present := f.Expr(field)
+	e, present, known := f.value(field)
+	if !known {
+		return "", false
+	}
 	if !present {
 		return "", true
 	}
@@ -58,7 +82,10 @@ func (f *Fields) Str(field string) (string, bool) {
 }
 
 func (f *Fields) Int(field string) (int64, bool) {
-	e, present := f.Expr(field)
+	e, present, known := f.value(field)
+	if !known {
+		return 0, false
+	}
 	if !present {
 		return 0, true
 	}
@@ -66,7 +93,10 @@ func (f *Fields) Int(field string) (int64, bool) {
 }
 
 func (f *Fields) Dur(field string) (time.Duration, bool) {
-	e, present := f.Expr(field)
+	e, present, known := f.value(field)
+	if !known {
+		return 0, false
+	}
 	if !present {
 		return 0, true
 	}
@@ -74,7 +104,10 @@ func (f *Fields) Dur(field string) (time.Duration, bool) {
 }
 
 func (f *Fields) Bool(field string) (bool, bool) {
-	e, present := f.Expr(field)
+	e, present, known := f.value(field)
+	if !known {
+		return false, false
+	}
 	if !present {
 		return false, true
 	}
@@ -85,7 +118,10 @@ func (f *Fields) Bool(field string) (bool, bool) {
 // element was constant. Absent and nil count as an empty, complete slice; a
 // non-literal value is unknown (complete == false, known == false).
 func (f *Fields) Strs(field string) (vals []string, complete, known bool) {
-	e, present := f.Expr(field)
+	e, present, known := f.value(field)
+	if !known {
+		return nil, false, false
+	}
 	if !present {
 		return nil, true, true
 	}
@@ -99,7 +135,10 @@ func (f *Fields) Strs(field string) (vals []string, complete, known bool) {
 // SliceLen returns the element count of a slice field literal; absent or
 // nil is 0; a non-literal value is unknown.
 func (f *Fields) SliceLen(field string) (int, bool) {
-	e, present := f.Expr(field)
+	e, present, known := f.value(field)
+	if !known {
+		return 0, false
+	}
 	if !present {
 		return 0, true
 	}
@@ -114,8 +153,8 @@ func (f *Fields) SliceLen(field string) (int, bool) {
 
 // Durs returns the constant elements of a []time.Duration field literal.
 func (f *Fields) Durs(field string) []time.Duration {
-	e, present := f.Expr(field)
-	if !present {
+	e, present, known := f.value(field)
+	if !known || !present {
 		return nil
 	}
 	lit, ok := ast.Unparen(e).(*ast.CompositeLit)
@@ -135,7 +174,10 @@ func (f *Fields) Durs(field string) []time.Duration {
 // is the name of the type's zero value, used for an absent field or a
 // literal 0.
 func (f *Fields) Enum(field, zero string) (string, bool) {
-	e, present := f.Expr(field)
+	e, present, known := f.value(field)
+	if !known {
+		return "", false
+	}
 	if !present {
 		return zero, true
 	}
@@ -159,7 +201,10 @@ const (
 
 // Ptr classifies a pointer-typed field.
 func (f *Fields) Ptr(field string) PtrState {
-	e, present := f.Expr(field)
+	e, present, known := f.value(field)
+	if !known {
+		return PtrUnknown
+	}
 	if !present {
 		return PtrNil
 	}

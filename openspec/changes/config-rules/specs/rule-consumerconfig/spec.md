@@ -5,7 +5,7 @@ consumerconfig reports consumer configurations that nats-server rejects at creat
 ## ADDED Requirements
 
 ### Requirement: Only constant fields of consumer config literals are examined
-The rule SHALL examine composite literals whose type is `jetstream.ConsumerConfig`, `jetstream.OrderedConsumerConfig` or legacy `nats.ConsumerConfig`, directly, through `&T{...}`, and as elements of slices or maps of those types. A field SHALL take part in a check only when it is present in the literal with a compile-time constant value (or a slice literal of constants, or `nil`); a field set from a variable or call makes every check that involves it inapplicable. An absent field has the type's zero value. Field names below are the `jetstream` ones; the legacy twin `nats.ConsumerConfig.Heartbeat` corresponds to `IdleHeartbeat`. Each diagnostic SHALL be reported at the literal, carry category `consumerconfig`, and read `consumer config: <server wording>`.
+The rule SHALL examine composite literals whose type is `jetstream.ConsumerConfig`, `jetstream.OrderedConsumerConfig` or legacy `nats.ConsumerConfig`, directly, through `&T{...}`, and as elements of slices or maps of those types. A field SHALL take part in a check only when it is present in the literal with a compile-time constant value (or a slice literal of constants, or `nil`); a field set from a variable or call makes every check that involves it inapplicable. An absent field has the type's zero value. A field that any assignment or increment statement in the enclosing function writes (`x.<Field> = ...`, on any receiver) SHALL be unknown for every literal in that function, whether or not the literal sets it: a literal stored in a variable may be completed or changed before use. Field names below are the `jetstream` ones; the legacy twin `nats.ConsumerConfig.Heartbeat` corresponds to `IdleHeartbeat`. Each diagnostic SHALL be reported at the literal, carry category `consumerconfig`, and read `consumer config: <server wording>`.
 
 #### Scenario: Field from a variable disables the check
 - **WHEN** a literal has `FilterSubject: subj` and `FilterSubjects: []string{"a"}` where `subj` is a variable
@@ -22,6 +22,14 @@ The rule SHALL examine composite literals whose type is `jetstream.ConsumerConfi
 #### Scenario: Unrelated struct with the same field names
 - **WHEN** code writes a literal of a user-defined struct with a `FilterSubject` and `FilterSubjects` field
 - **THEN** the rule reports nothing
+
+#### Scenario: Absent field completed later in the function
+- **WHEN** a function has `cfg := jetstream.ConsumerConfig{DeliverPolicy: jetstream.DeliverByStartSequencePolicy}` followed by `cfg.OptStartSeq = 10`
+- **THEN** the rule reports nothing for that literal
+
+#### Scenario: Unrelated field assigned later
+- **WHEN** a function has `cfg := jetstream.ConsumerConfig{Durable: "a.b"}` followed by `cfg.FilterSubject = "x"`
+- **THEN** the rule still reports the durable-name message
 
 ### Requirement: Consumer names are valid asset names
 Mirrors `checkConsumerCfg` via `isValidAssetName`. The rule SHALL report `Name` or `Durable` when the constant is non-empty and contains any of `.`, `*`, `>`, `\`, `/`, or whitespace (space, tab, CR, LF, form feed). Messages: `consumer config: consumer name can not contain '.', '*', '>', '\', '/' or whitespace` and `consumer config: consumer durable name can not contain '.', '*', '>', '\', '/' or whitespace`.
@@ -107,7 +115,7 @@ Mirrors the `DeliverSubject != ""` branch of `checkConsumerCfg`. When `DeliverSu
 - **THEN** the rule reports nothing
 
 ### Requirement: Pull-only constraints
-Mirrors the `DeliverSubject == ""` branch of `checkConsumerCfg`. When `DeliverSubject` is absent or `""`, and no assignment statement in the enclosing function writes a `DeliverSubject` field (a literal stored in a variable and completed later may become a push consumer), the rule SHALL report: `RateLimit > 0` with `consumer config: consumer in pull mode can not have rate limit set`; `MaxWaiting < 0` with `consumer config: consumer max waiting needs to be positive`; `IdleHeartbeat > 0` with `consumer config: consumer idle heartbeat requires a push based consumer`; `FlowControl: true` with `consumer config: consumer flow control requires a push based consumer`; `MaxRequestBatch < 0` with `consumer config: consumer max request batch needs to be > 0`; `MaxRequestExpires` in `(0, 1ms)` with `consumer config: consumer max request expires needs to be >= 1ms`.
+Mirrors the `DeliverSubject == ""` branch of `checkConsumerCfg`. When `DeliverSubject` is absent or `""` the rule SHALL report: `RateLimit > 0` with `consumer config: consumer in pull mode can not have rate limit set`; `MaxWaiting < 0` with `consumer config: consumer max waiting needs to be positive`; `IdleHeartbeat > 0` with `consumer config: consumer idle heartbeat requires a push based consumer`; `FlowControl: true` with `consumer config: consumer flow control requires a push based consumer`; `MaxRequestBatch < 0` with `consumer config: consumer max request batch needs to be > 0`; `MaxRequestExpires` in `(0, 1ms)` with `consumer config: consumer max request expires needs to be >= 1ms`.
 
 #### Scenario: Heartbeat on a pull consumer
 - **WHEN** a literal has `Durable: "w"` and `IdleHeartbeat: 5 * time.Second` and no `DeliverSubject`
@@ -131,7 +139,7 @@ Mirrors the `DeliverSubject == ""` branch of `checkConsumerCfg`. When `DeliverSu
 
 #### Scenario: DeliverSubject assigned after the literal
 - **WHEN** a function has `cc := nats.ConsumerConfig{Heartbeat: 5 * time.Second}` followed by `cc.DeliverSubject = "d"`
-- **THEN** the rule reports nothing for the pull-only checks
+- **THEN** the rule reports nothing for the pull-only checks (the mode is unknown)
 
 #### Scenario: Literal stored without later assignment
 - **WHEN** a function has `cc := nats.ConsumerConfig{Heartbeat: 5 * time.Second}` and never assigns a `DeliverSubject`

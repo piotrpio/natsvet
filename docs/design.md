@@ -136,6 +136,11 @@ natsvet/
   (`checkConsumerCfg`, `checkStreamCfgLocked`, `keyValid`, ...) in the rule's spec. When
   a rule is implemented its check list is re-derived from that function line by line,
   not copied from this document.
+- Config rules read constants from the composite literal only. A field that the
+  enclosing function assigns anywhere (`cfg.X = ...`) is unknown for every literal in
+  that function, present or not: a stored literal may be completed or changed before
+  use, and checks that interpret an absent field as its zero value would otherwise
+  misfire. Mutation through another function is a known, accepted hole.
 - No cross-package facts. Each rule reasons only about the package being analyzed.
 - `pass.Module` (module path/version of the analyzed package) is available in recent
   x/tools drivers but is not needed: if an API does not exist in the user's nats.go
@@ -228,11 +233,9 @@ are out of scope: the rule cannot see them.
   6. push: `DeliverSubject` not a literal subject (contains a `*`/`>` token) or failing
      `IsValidSubject`; `MaxWaiting != 0`; `MaxAckPending > 0 && AckPolicy == AckNonePolicy`
      (push only); `IdleHeartbeat` in `(0, 100ms)`.
-  7. pull (`DeliverSubject` absent or `""`, and no assignment to a `DeliverSubject`
-     field anywhere in the enclosing function, since a stored literal may be completed
-     into a push consumer later): `RateLimit > 0`; `MaxWaiting < 0`; `IdleHeartbeat > 0`
-     (heartbeat is a pull-request option, not a config field); `FlowControl`;
-     `MaxRequestBatch < 0`; `MaxRequestExpires` in `(0, 1ms)`.
+  7. pull (`DeliverSubject` absent or `""`): `RateLimit > 0`; `MaxWaiting < 0`;
+     `IdleHeartbeat > 0` (heartbeat is a pull-request option, not a config field);
+     `FlowControl`; `MaxRequestBatch < 0`; `MaxRequestExpires` in `(0, 1ms)`.
   8. `FilterSubject` non-empty and `FilterSubjects` non-empty.
   9. `FilterSubject` failing `IsValidSubject`; a `FilterSubjects` element that is `""` or
      fails `IsValidSubject`.

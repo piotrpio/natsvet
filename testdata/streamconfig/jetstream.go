@@ -125,3 +125,15 @@ type other struct {
 }
 
 var _ = other{Name: "a.b", Replicas: 9}
+
+func completedLater() {
+	cfg := jetstream.StreamConfig{Name: "s", DiscardNewPerSubject: true, MaxMsgsPerSubject: 10}
+	cfg.Discard = jetstream.DiscardNew
+	_ = cfg
+	m := jetstream.StreamConfig{Name: "M", Mirror: &jetstream.StreamSource{Name: "A"}, Subjects: []string{"a"}}
+	m.Subjects = nil
+	_ = m
+	bad := jetstream.StreamConfig{Name: "s", Replicas: 7} // want `stream config: maximum replicas is 5`
+	bad.Subjects = []string{"x"}
+	_ = bad
+}

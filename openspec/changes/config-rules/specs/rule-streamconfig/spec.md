@@ -5,7 +5,7 @@ streamconfig reports stream configurations that nats-server rejects at create or
 ## ADDED Requirements
 
 ### Requirement: Only constant top-level fields of stream config literals are examined
-The rule SHALL examine composite literals whose type is `jetstream.StreamConfig` or legacy `nats.StreamConfig`, directly, through `&T{...}`, and as elements of slices or maps of those types. A field SHALL take part in a check only when it is present with a compile-time constant value (or a slice literal of constants, or `nil`); a field set from a variable or call makes every check that involves it inapplicable. Absent enum fields SHALL take the server default: `Retention` `LimitsPolicy`, `Discard` `DiscardOld`, `Storage` `FileStorage`, `Replicas` `1`, `PersistMode` default. Nested `Mirror`, `Sources`, `SubjectTransform`, `RePublish`, `Placement` and `ConsumerLimits` literals SHALL only be tested for presence (non-`nil`). Each diagnostic SHALL be reported at the literal, carry category `streamconfig`, and read `stream config: <server wording>`.
+The rule SHALL examine composite literals whose type is `jetstream.StreamConfig` or legacy `nats.StreamConfig`, directly, through `&T{...}`, and as elements of slices or maps of those types. A field SHALL take part in a check only when it is present with a compile-time constant value (or a slice literal of constants, or `nil`); a field set from a variable or call makes every check that involves it inapplicable. A field that any assignment or increment statement in the enclosing function writes (`x.<Field> = ...`, on any receiver) SHALL be unknown for every literal in that function, whether or not the literal sets it: a literal stored in a variable may be completed or changed before use. Absent enum fields SHALL take the server default: `Retention` `LimitsPolicy`, `Discard` `DiscardOld`, `Storage` `FileStorage`, `Replicas` `1`, `PersistMode` default. Nested `Mirror`, `Sources`, `SubjectTransform`, `RePublish`, `Placement` and `ConsumerLimits` literals SHALL only be tested for presence (non-`nil`). Each diagnostic SHALL be reported at the literal, carry category `streamconfig`, and read `stream config: <server wording>`.
 
 #### Scenario: Field from a variable disables the check
 - **WHEN** a literal has `Name: name` from a variable and `Replicas: 7`
@@ -18,6 +18,14 @@ The rule SHALL examine composite literals whose type is `jetstream.StreamConfig`
 #### Scenario: Unrelated struct
 - **WHEN** code writes a literal of a user-defined struct with `Name` and `Replicas` fields
 - **THEN** the rule reports nothing
+
+#### Scenario: Absent field completed later in the function
+- **WHEN** a function has `cfg := jetstream.StreamConfig{Name: "s", DiscardNewPerSubject: true, MaxMsgsPerSubject: 10}` followed by `cfg.Discard = jetstream.DiscardNew`
+- **THEN** the rule reports nothing for that literal
+
+#### Scenario: Unrelated field assigned later
+- **WHEN** a function has `cfg := jetstream.StreamConfig{Name: "s", Replicas: 7}` followed by `cfg.Subjects = []string{"x"}`
+- **THEN** the rule still reports the replicas message
 
 ### Requirement: Stream name is a valid asset name within the length limit
 Mirrors `checkStreamCfgLocked` via `isValidAssetName` and `JSMaxNameLen` = 255. The rule SHALL report `Name` present and empty, or containing any of `.`, `*`, `>`, `\`, `/` or whitespace, with `stream config: stream name is required and can not contain '.', '*', '>', '\', '/' or whitespace`; and a `Name` longer than 255 bytes with `stream config: stream name is too long, maximum allowed is 255`.

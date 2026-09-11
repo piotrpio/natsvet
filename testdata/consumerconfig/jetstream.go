@@ -128,3 +128,15 @@ type other struct {
 }
 
 var _ = other{FilterSubject: "a", FilterSubjects: []string{"b"}}
+
+func completedLater() {
+	cfg := jetstream.ConsumerConfig{DeliverPolicy: jetstream.DeliverByStartSequencePolicy}
+	cfg.OptStartSeq = 10
+	_ = cfg
+	prio := jetstream.ConsumerConfig{PriorityPolicy: jetstream.PriorityPolicyOverflow}
+	prio.PriorityGroups = []string{"a"}
+	_ = prio
+	fixed := jetstream.ConsumerConfig{Durable: "a.b"} // want `consumer config: consumer durable name can not contain`
+	fixed.FilterSubject = "x"
+	_ = fixed
+}
