@@ -7,9 +7,9 @@
 
 ## 2. Rule consumerconfig
 
-- [ ] 2.1 Write `testdata/consumerconfig/{jetstream,ordered,legacy,ok}.go` with one `// want` line (or `ok.go` line) per scenario in `rule-consumerconfig/spec.md`, messages copied from the spec; verify `go test ./analyzers/consumerconfig` fails because the analyzer does not exist
-- [ ] 2.2 Implement `analyzers/consumerconfig` with the `fields` alias table (`IdleHeartbeat`↔`Heartbeat`), the `cfg` view, and checks 1–13 in `checkConsumerCfg` order (names, negatives, backoff vs max deliver, description, push, pull, filters, deliver policy, sampling, flow control, durable/name, priority, flow-control ack); verify the analysistest passes
-- [ ] 2.3 Register `consumerconfig` in `Analyzers()`; verify `bin/natsvet ./consumerconfig/` from `testdata` prints the expected diagnostics and `ok.go` yields none
+- [x] 2.1 Write `testdata/consumerconfig/{jetstream,ordered,legacy,ok}.go` with one `// want` line (or `ok.go` line) per scenario in `rule-consumerconfig/spec.md`, messages copied from the spec; verify `go test ./analyzers/consumerconfig` fails because the analyzer does not exist
+- [x] 2.2 Implement `analyzers/consumerconfig` with the `fields` alias table (`IdleHeartbeat`↔`Heartbeat`), the `cfg` view, and checks 1–13 in `checkConsumerCfg` order (names, negatives, backoff vs max deliver, description, push, pull, filters, deliver policy, sampling, flow control, durable/name, priority, flow-control ack); verify the analysistest passes
+- [x] 2.3 Register `consumerconfig` in `Analyzers()`; verify `bin/natsvet ./consumerconfig/` from `testdata` prints the expected diagnostics and `ok.go` yields none
 
 ## 3. Rule streamconfig
 

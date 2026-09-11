@@ -20,6 +20,7 @@ package natsvet
 import (
 	"golang.org/x/tools/go/analysis"
 
+	"github.com/piotrpio/natsvet/analyzers/consumerconfig"
 	"github.com/piotrpio/natsvet/analyzers/headerkey"
 	"github.com/piotrpio/natsvet/analyzers/legacyjs"
 )
@@ -27,6 +28,7 @@ import (
 // Analyzers returns the default-on rules.
 func Analyzers() []*analysis.Analyzer {
 	return []*analysis.Analyzer{
+		consumerconfig.Analyzer,
 		headerkey.Analyzer,
 	}
 }
