@@ -20,10 +20,10 @@
 
 ## 4. Rule headerkey
 
-- [ ] 4.1 Write `testdata/headerkey/` packages with `// want` comments covering every scenario in `rule-headerkey/spec.md` (nats.Header methods, map index, jetstream.Msg.Headers, micro.Request.Headers, named constant, exact-case, user header, non-constant) plus `.golden` files for the four fix-selection cases (jetstream only, nats only, both, micro only, no constant available); verify `go test ./analyzers/headerkey` fails because the analyzer does not exist yet
-- [ ] 4.2 Implement `analyzers/headerkey` detection with the message from the spec; verify `analysistest.Run` expectations pass
-- [ ] 4.3 Implement fix selection per file and the single `TextEdit`; verify `analysistest.RunWithSuggestedFixes` matches all golden files
-- [ ] 4.4 Register `headerkey` in `Analyzers()`; verify `go run ./cmd/natsvet ./testdata/headerkey/...` from the `testdata` module directory reports the expected diagnostics, `-diff` prints the fixes, and `-fix` on a scratch copy applies them
+- [x] 4.1 Write `testdata/headerkey/` packages with `// want` comments covering every scenario in `rule-headerkey/spec.md` (nats.Header methods, map index, jetstream.Msg.Headers, micro.Request.Headers, named constant, exact-case, user header, non-constant) plus `.golden` files for the four fix-selection cases (jetstream only, nats only, both, micro only, no constant available); verify `go test ./analyzers/headerkey` fails because the analyzer does not exist yet
+- [x] 4.2 Implement `analyzers/headerkey` detection with the message from the spec; verify `analysistest.Run` expectations pass
+- [x] 4.3 Implement fix selection per file and the single `TextEdit`; verify `analysistest.RunWithSuggestedFixes` matches all golden files
+- [x] 4.4 Register `headerkey` in `Analyzers()`; verify `go run ./cmd/natsvet ./testdata/headerkey/...` from the `testdata` module directory reports the expected diagnostics, `-diff` prints the fixes, and `-fix` on a scratch copy applies them
 
 ## 5. Rule legacyjs
 

@@ -17,11 +17,17 @@
 // -<rule>.enable flag.
 package natsvet
 
-import "golang.org/x/tools/go/analysis"
+import (
+	"golang.org/x/tools/go/analysis"
+
+	"github.com/piotrpio/natsvet/analyzers/headerkey"
+)
 
 // Analyzers returns the default-on rules.
 func Analyzers() []*analysis.Analyzer {
-	return []*analysis.Analyzer{}
+	return []*analysis.Analyzer{
+		headerkey.Analyzer,
+	}
 }
 
 // OptIn returns the rules that report nothing unless enabled with their
