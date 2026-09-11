@@ -1,0 +1,44 @@
+## Context
+
+`bootstrap` left a working framework: `natsapi.IsPkg`/`Callee`/`IsMethod`/`ConstString`, module-mode testdata against nats.go v1.53.1, the corpus gate. See proposal.md for motivation. The three rules here share one shape — find a composite literal of a known type, pull constant fields, evaluate predicates — and one body of ported code, the nats-server subject functions. Check lists were re-derived this session from nats-server `c16afd1` (`checkConsumerCfg` in `server/consumer.go`, `checkStreamCfgLocked` in `server/stream.go`, `isValidAssetName` in `server/jetstream.go`, error wording from `server/errors.json`) and nats.go v1.53.1 (`jetstream/kv.go`, `jetstream/object.go`, legacy `kv.go`); the specs cite each. Two things the design doc had wrong and the specs now carry correctly: `MaxAckPending`+`AckNone` is push-only, and negative KV `History` is accepted (defaults to 1), only `> 64` fails.
+
+## Goals / Non-Goals
+
+**Goals:**
+- Zero false positives by construction: a check runs only when every field it reads is a constant in the literal.
+- One literal-walking core the three rules and later config rules reuse.
+- Subject semantics pinned to nats-server's own tests, not to our reading of the algorithm.
+
+**Non-Goals:**
+- Nested literal checks and configs assembled field by field (see proposal Non-goals).
+- Reporting a field more than once per literal when several checks fail on it; each check reports independently and that is acceptable.
+
+## Decisions
+
+**`CompositeFields` shape.** `natsapi.CompositeFields(info, lit, types ...TypeRef) (fields map[string]ast.Expr, matched TypeRef, ok bool)` where `TypeRef{Pkg, Name}`. It resolves `info.TypeOf(lit)`, strips a pointer, requires a `*types.Named` whose object is `IsPkg(pkg)` and named `Name`, and returns keyed `KeyValueExpr`s by field name. Unkeyed (positional) literals return `ok=false`. Element literals inside `[]T{{...}}` already carry the element type in `TypesInfo`, so the inspector's plain `*ast.CompositeLit` traversal covers them with no special casing; `&T{}` is a `UnaryExpr` around the literal and the literal's own type is `T`, so nothing to strip there either — the pointer strip is for `[]*T{{...}}` elements whose recorded type is `*T`. Alternative: a per-rule `switch` on the type string — rejected, three rules would copy it and the legacy-twin mapping would drift.
+
+**Field-name mapping.** Each rule declares its own `fields` table keyed by canonical (`jetstream`) name with the legacy alias where it differs (`IdleHeartbeat`→`Heartbeat`; `MaxMsgsPerSubject`/`DiscardNewPerSubject` are already identical in both). A rule reads fields through a small accessor that consults the alias when `matched` is the legacy type. Keeps `CompositeFields` generic.
+
+**Constant extraction.** `ConstInt(info, e) (int64, bool)`, `ConstDuration` (same, typed as `time.Duration`), `ConstBool`, and `SliceConstStrings(info, e) (vals []string, complete bool)` which returns the constant elements of a slice literal and whether every element was constant, so the stream `Subjects` checks can run on the constant subset (spec: mixed literal still reports duplicates). `nil` slice or absent field → empty. `ConstEnum(info, e, pkgs...) (name string, ok bool)`: for an expression whose object is a named constant declared in one of the packages, returns the constant's identifier (`AckNonePolicy`), so `nats.AckNonePolicy` and `jetstream.AckNonePolicy` compare equal by name; for an untyped literal `0` it returns the zero-value name the rule supplies. Alternative: compare numeric values — rejected, the legacy and jetstream enums are not guaranteed to share numbering (`DeliverPolicy` iota order does match today, but nothing enforces it).
+
+**Subject helpers.** Port `isValidSubject`, `subjectIsLiteral`, `tokenizeSubjectIntoSlice`, `analyzeTokens`, `isSubsetMatchTokenized`, `SubjectsCollide` and `subjectIsSubsetMatch` from `server/sublist.go` into `natsapi/subject.go` as `IsValidSubject`, `SubjectIsLiteral`, `SubjectsCollide`, `SubjectIsSubsetMatch`, keeping the server's control flow line for line so future diffs against the server are mechanical. Tests: copy the tables from `TestSublistValidSubjects`, `TestSubjectIsLiteral`, `TestIsSubsetMatch`, `TestSublistSubjectCollide` verbatim into table tests. The `checkRunes` branch (NUL and replacement-rune rejection) is kept too: a Go string constant can carry `\x00` or `\xff` through escapes, and it is four lines.
+
+**KV helpers.** `BucketValid`, `KeyValid`, `SearchKeyValid` in `natsapi/kv.go` with the three regexes and the `.`/`..` rules copied from `jetstream/kv.go`; table test with the cases from the spec plus nats.go's `TestKeyValueKeys`-style edge cases.
+
+**Rule structure.** Each rule is one file: a `fields` table, `run` that walks `*ast.CompositeLit`, calls `CompositeFields` with its type refs, builds a small `cfg` view (`func (c cfg) str(name) (string, bool)`, `dur`, `int`, `boolean`, `enum`, `strs`), then a list of check functions `func(c cfg, report func(msg string))` executed in server order. Reporting at `lit.Pos()`–`lit.End()` with `Category` = rule name. Message = `<rule prefix>: <server wording>`; wording is copied from `server/errors.json` descriptions (or the inline `fmt.Errorf` text) so a user can grep the server for it.
+
+**kvconfig method hooks.** Reuses `Callee`+`IsMethod` against a table of `{pkg, recv, method, argIndex, search bool}`: `jetstream.KeyValue` methods take `ctx` first so the key is argument 1; legacy `nats.KeyValue` methods have it at 0. `WatchFiltered` takes a slice literal (`SliceConstStrings`); `ListKeysFiltered` is variadic (each constant argument). Bucket lookups: `KeyValue`/`ObjectStore`/`DeleteKeyValue`/`DeleteObjectStore` on `jetstream.JetStream` (interfaces `KeyValueManager`/`ObjectStoreManager` declare them — `IsMethod` matches on the declaring interface, so the table lists those) and on legacy `nats.KeyValueManager`/`nats.ObjectStoreManager`.
+
+**Testdata layout.** `testdata/consumerconfig/`, `testdata/streamconfig/`, `testdata/kvconfig/`, each with `jetstream.go`, `legacy.go` and `ok.go` (all-negative file, must produce zero `// want`). Every spec scenario maps to one `// want` line or one line in `ok.go`. Multi-diagnostic literals use several `// want` patterns on one line, so each check stays independently visible.
+
+**Corpus.** After all three rules: `make corpus`, triage into `corpus.expected`. Expect natscli to trigger `streamconfig`/`consumerconfig` on its test fixtures if any build intentionally invalid configs; those are `FP` with the reason "test asserts the server rejects this".
+
+**Helpers new vs reused.** New in `natsapi`: `CompositeFields`, `ConstInt`, `ConstDuration`, `ConstBool`, `ConstEnum`, `SliceConstStrings`, the four subject functions, the three KV validators. Promoted because each is used by at least two of the three rules or is a verbatim port of upstream code that must have its own test table. Reused: `IsPkg`, `Callee`, `IsMethod`, `ConstString`. Not promoted: the per-rule `cfg` view and `fields` alias table — they encode rule-specific field knowledge and stay in the rule package.
+
+## Risks / Trade-offs
+
+- [Server wording changes over time] → messages are data in one place per rule; the spec cites the server function so a wording refresh is a diff against `errors.json`. Rules never reference versions.
+- [`SubjectsCollide` port drifts from the server] → the server's own test tables run against our port; a server change that alters semantics shows up as a failing table when the tables are refreshed.
+- [Enum-by-name comparison misses a user's own `const myPolicy = jetstream.AckNonePolicy`] → `ConstEnum` follows the object of the identifier; a user constant initialized from the nats.go constant is a different object with the same value, so it is reported as not-an-enum and the check is skipped. Conservative; no false positive.
+- [Literal with hundreds of fields checked by ~40 predicates] → all predicates are O(fields); the pairwise subject checks are O(n²) over a handful of subjects. Negligible.
+- [Corpus noise from intentionally invalid fixtures in test code] → tagged `FP` with reason; if a rule turns out to fire mostly on tests, consider excluding `_test.go` from default-on config rules — decision deferred to the corpus numbers.
