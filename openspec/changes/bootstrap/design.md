@@ -35,7 +35,7 @@ Empty repository; `docs/design.md` §2 fixes the architecture (`go/analysis`, no
 
 **CI.** GitHub Actions, matrix of the two newest Go releases; steps: download testdata module, gofmt check, `go vet`, `staticcheck` (pinned version), `misspell -locale US`, `go test ./...`. Corpus is a separate job on the newest Go only, so its network use and runtime never block the unit-test signal.
 
-**License header.** nats-io style, `Copyright 2026 The NATS Authors`, on every `.go` file including generated ones and `testdata`. CI greps for the first line.
+**License header.** The orbit.go header verbatim — first line `// Copyright 2026 Synadia Communications Inc.` followed by the Apache 2.0 boilerplate — on every `.go` file including generated ones and `testdata`. CI greps for the first line. Chosen over `The NATS Authors` because the anticipated home is synadia-io; changed before any move elsewhere.
 
 **Helpers new vs reused.** All new: `Pkg`/`IsPkg`, `Callee`, `IsMethod`, `ConstString`, the two tables. `EnclosingFunc`, `SingleDefinition`, `CompositeFields`, subject and KV helpers are deliberately absent; each is promoted to `natsapi` by the first rule that needs it, with its own table test.
 
@@ -48,6 +48,3 @@ Empty repository; `docs/design.md` §2 fixes the architecture (`go/analysis`, no
 - [Legacy table keyed by source file names could break if nats.go reorganizes files] → the drift test fails loudly; the file list is one constant in the generator.
 - [Corpus repositories need their own `go mod download`, which can be slow] → clones and module cache are reused across runs via `CORPUS_DIR`; CI caches it.
 
-## Open Questions
-
-- Whether the copyright line should read `The NATS Authors` from day one while the module lives under a personal account. Assumed yes, since the intended home is nats-io and changing it later touches every file.

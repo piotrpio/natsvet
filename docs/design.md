@@ -674,7 +674,8 @@ plus `analyzer-framework` and `testing`.
 
 ## 7. Code conventions for the implementing repository
 
-- Apache 2.0 license header on every `.go` file, nats-io style.
+- Apache 2.0 license header on every `.go` file, the orbit.go form:
+  `// Copyright 2026 Synadia Communications Inc.` then the standard boilerplate.
 - Comments only where they carry information the code does not; rule `Doc` strings are
   the exception and should be complete. No version numbers, links, or issue references in
   code comments.
