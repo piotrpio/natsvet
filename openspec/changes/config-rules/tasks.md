@@ -19,9 +19,9 @@
 
 ## 4. Rule kvconfig
 
-- [ ] 4.1 Write `testdata/kvconfig/{jetstream,legacy,ok}.go` with one `// want` line per scenario in `rule-kvconfig/spec.md` (config literals, bucket lookups, key methods, watch filters, object store); verify the test fails before the analyzer exists
-- [ ] 4.2 Implement `analyzers/kvconfig`: config-literal checks via `CompositeFields`, method-argument checks via the `{pkg, recv, method, argIndex, search}` table; verify the analysistest passes
-- [ ] 4.3 Register `kvconfig` in `Analyzers()`; verify `bin/natsvet ./kvconfig/` from `testdata` prints the expected diagnostics
+- [x] 4.1 Write `testdata/kvconfig/{jetstream,legacy,ok}.go` with one `// want` line per scenario in `rule-kvconfig/spec.md` (config literals, bucket lookups, key methods, watch filters, object store); verify the test fails before the analyzer exists
+- [x] 4.2 Implement `analyzers/kvconfig`: config-literal checks via `CompositeFields`, method-argument checks via the `{pkg, recv, method, argIndex, search}` table; verify the analysistest passes
+- [x] 4.3 Register `kvconfig` in `Analyzers()`; verify `bin/natsvet ./kvconfig/` from `testdata` prints the expected diagnostics
 
 ## 5. Corpus and docs
 

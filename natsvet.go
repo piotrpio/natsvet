@@ -22,6 +22,7 @@ import (
 
 	"github.com/piotrpio/natsvet/analyzers/consumerconfig"
 	"github.com/piotrpio/natsvet/analyzers/headerkey"
+	"github.com/piotrpio/natsvet/analyzers/kvconfig"
 	"github.com/piotrpio/natsvet/analyzers/legacyjs"
 	"github.com/piotrpio/natsvet/analyzers/streamconfig"
 )
@@ -31,6 +32,7 @@ func Analyzers() []*analysis.Analyzer {
 	return []*analysis.Analyzer{
 		consumerconfig.Analyzer,
 		headerkey.Analyzer,
+		kvconfig.Analyzer,
 		streamconfig.Analyzer,
 	}
 }
