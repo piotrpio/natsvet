@@ -1,0 +1,10 @@
+# Findings natsvet reports on the corpus in corpus.txt, triaged by hand.
+# One per line, exactly as the tool prints it after the clone prefix is
+# replaced by the repository name, followed by a tag:
+#   <repo>/<file>:<line>:<col>: <message>  # TP: <what is wrong there>
+#   <repo>/<file>:<line>:<col>: <message>  # FP: <why the rule is wrong here>
+# TP lines are candidates for upstream fixes; FP lines are accepted noise.
+# A line the tool reports that is not here fails the corpus run, as does a
+# line here that the tool no longer reports.
+
+nats.go/test/js_test.go:345:15: header key "nats-expected-last-sequence" does not match "Nats-Expected-Last-Sequence"; nats.go header lookups are case-sensitive  # FP: the test miscases the header on purpose to prove the server ignores it

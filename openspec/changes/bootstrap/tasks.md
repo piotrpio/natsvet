@@ -33,9 +33,9 @@
 
 ## 6. Corpus gate
 
-- [ ] 6.1 Write `scripts/corpus.txt` with pinned commits for nats.go (`examples/`, `test/`), natscli, nack, nex, and each orbit.go module `test/` directory; verify every line resolves with `git ls-remote`
-- [ ] 6.2 Write `scripts/corpus.sh` (shallow fetch by commit, `go mod download`, run all rules except `legacyjs`, normalize, diff against `corpus.expected` ignoring `# TP|FP` tags, separate `legacyjs` count pass) and an empty `scripts/corpus.expected` with a header comment describing the line format; verify `make corpus` runs end to end and, with only `headerkey` active, reports its findings or none
-- [ ] 6.3 Triage any `headerkey` findings from the run into `corpus.expected` with `TP`/`FP` tags; verify a second `make corpus` passes
+- [x] 6.1 Write `scripts/corpus.txt` with pinned commits for nats.go (`examples/`, `test/`), natscli, nack, nex, and each orbit.go module `test/` directory; verify every line resolves with `git ls-remote`
+- [x] 6.2 Write `scripts/corpus.sh` (shallow fetch by commit, `go mod download`, run all rules except `legacyjs`, normalize, diff against `corpus.expected` ignoring `# TP|FP` tags, separate `legacyjs` count pass) and an empty `scripts/corpus.expected` with a header comment describing the line format; verify `make corpus` runs end to end and, with only `headerkey` active, reports its findings or none
+- [x] 6.3 Triage any `headerkey` findings from the run into `corpus.expected` with `TP`/`FP` tags; verify a second `make corpus` passes
 
 ## 7. CI, README, conventions
 

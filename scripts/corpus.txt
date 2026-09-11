@@ -1,0 +1,17 @@
+# Real-world users of nats.go that the corpus run lints, one per line:
+#   [NAME=value ...] <git url> <commit> [<directory>] [<package pattern>...]
+# Options come first: modfile=<file> copies that file over go.mod in the
+# clone (nats.go keeps its test dependencies in go_test.mod). The directory is relative to the
+# clone (default "."); patterns default to "./...". Bump commits deliberately: rerun, triage the delta, commit both
+# this file and corpus.expected.
+modfile=go_test.mod https://github.com/nats-io/nats.go.git db1375fcffae2eb0b4ced1b7bad4d47c4447e4ac . ./examples/... ./test/...
+https://github.com/nats-io/natscli.git a4200bf7d86c1a11d7c84c99d39837698768ba2f
+https://github.com/nats-io/nack.git e700bc2f5b8a4a9429fdcea39be32c13390c22f3
+https://github.com/synadia-io/nex.git 12609378dbb5402ef94a1b283704e0441fea4754
+https://github.com/synadia-io/orbit.go.git 8b6323dea98cbbf960c0c465559830abc2cc8545 counters/test
+https://github.com/synadia-io/orbit.go.git 8b6323dea98cbbf960c0c465559830abc2cc8545 jetstreamext/test
+https://github.com/synadia-io/orbit.go.git 8b6323dea98cbbf960c0c465559830abc2cc8545 kvcodec/test
+https://github.com/synadia-io/orbit.go.git 8b6323dea98cbbf960c0c465559830abc2cc8545 natscontext/test
+https://github.com/synadia-io/orbit.go.git 8b6323dea98cbbf960c0c465559830abc2cc8545 natsext/test
+https://github.com/synadia-io/orbit.go.git 8b6323dea98cbbf960c0c465559830abc2cc8545 natssysclient/test
+https://github.com/synadia-io/orbit.go.git 8b6323dea98cbbf960c0c465559830abc2cc8545 pcgroups/test

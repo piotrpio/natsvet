@@ -46,5 +46,6 @@ Empty repository; `docs/design.md` §2 fixes the architecture (`go/analysis`, no
 - [`go/packages` in the generator needs the full nats.go dependency closure cached] → `go mod download` in `testdata` covers it; the drift test skips with a clear message when the module is absent rather than failing confusingly.
 - [Header table carries nats.go's own typo `jetstream.TimeStampHeaer`] → the fix emits it verbatim; correct, if ugly. Not worked around.
 - [Legacy table keyed by source file names could break if nats.go reorganizes files] → the drift test fails loudly; the file list is one constant in the generator.
+- [x/tools' go-version probe runs `go list` with `GO111MODULE=off`, so `GOFLAGS=-modfile=...` in the environment breaks every analysis driver] → corpus entries take a `modfile=<file>` option that copies the file over `go.mod` in the pinned clone instead (nats.go keeps test dependencies in `go_test.mod`). Worth an upstream report.
 - [Corpus repositories need their own `go mod download`, which can be slow] → clones and module cache are reused across runs via `CORPUS_DIR`; CI caches it.
 
