@@ -1,0 +1,8 @@
+*.test
+*.out
+/natsvet
+/bin/
+.DS_Store
+.idea/
+.vscode/
+.claude/settings.local.json

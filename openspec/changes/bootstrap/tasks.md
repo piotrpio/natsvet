@@ -1,22 +1,22 @@
 ## 1. Module and skeleton
 
-- [ ] 1.1 Create `go.mod` (`github.com/piotrpio/natsvet`, `go 1.25`, `golang.org/x/tools v0.43.0`), `LICENSE` (Apache 2.0), `.gitignore`; verify `go build ./...` succeeds on an empty module
-- [ ] 1.2 Create `testdata/go.mod` (module `natsvet/testdata`, nats.go v1.53.1) and a `Makefile` with `build`, `test` (runs `cd testdata && go mod download` first), `lint`, `generate`, `corpus` targets; verify `make test` passes with no packages yet and the nats.go module is present in the cache afterwards (run the download outside the sandbox)
-- [ ] 1.3 Create `natsvet.go` with `Analyzers()` and `OptIn()` returning empty slices, and `cmd/natsvet/main.go` on `multichecker`; verify `go run ./cmd/natsvet -h` lists no analyzers and exits cleanly
-- [ ] 1.4 Verify the `go fix -fixtool` path: run `go fix -fixtool=$(go env GOPATH)/bin/natsvet ./cmd/...` on the empty analyzer set and record in design.md whether it delegates correctly on x/tools v0.43.0 (see Risks)
+- [x] 1.1 Create `go.mod` (`github.com/piotrpio/natsvet`, `go 1.25`, `golang.org/x/tools v0.43.0`), `LICENSE` (Apache 2.0), `.gitignore`; verify `go build ./...` succeeds on an empty module
+- [x] 1.2 Create `testdata/go.mod` (module `natsvet/testdata`, nats.go v1.53.1) and a `Makefile` with `build`, `test` (runs `cd testdata && go mod download` first), `lint`, `generate`, `corpus` targets; verify `make test` passes with no packages yet and the nats.go module is present in the cache afterwards (run the download outside the sandbox)
+- [x] 1.3 Create `natsvet.go` with `Analyzers()` and `OptIn()` returning empty slices, and `cmd/natsvet/main.go` on `multichecker`; verify `go run ./cmd/natsvet -h` lists no analyzers and exits cleanly
+- [x] 1.4 Verify the `go fix -fixtool` path: run `go fix -fixtool=$(go env GOPATH)/bin/natsvet ./cmd/...` on the empty analyzer set and record in design.md whether it delegates correctly on x/tools v0.43.0 (see Risks)
 
 ## 2. internal/natsapi helpers
 
-- [ ] 2.1 Implement `Pkg`, `Core`/`JetStream`/`Micro`, `IsPkg` with vendored-suffix matching; verify table tests cover exact path, `/vendor/` suffix, unrelated package, nil package
-- [ ] 2.2 Implement `Callee` and `IsMethod` (pointer receiver deref, interface receivers); verify with a `go/types`-driven table test over a small in-test source that defines named, pointer and interface receivers
-- [ ] 2.3 Implement `ConstString`; verify table test covers literal, named constant, constant concatenation, non-constant expression
+- [x] 2.1 Implement `Pkg`, `Core`/`JetStream`/`Micro`, `IsPkg` with vendored-suffix matching; verify table tests cover exact path, `/vendor/` suffix, unrelated package, nil package
+- [x] 2.2 Implement `Callee` and `IsMethod` (pointer receiver deref, interface receivers); verify with a `go/types`-driven table test over a small in-test source that defines named, pointer and interface receivers
+- [x] 2.3 Implement `ConstString`; verify table test covers literal, named constant, constant concatenation, non-constant expression
 
 ## 3. Generated tables
 
-- [ ] 3.1 Implement `internal/tablegen.Generate(testdataDir)` loading the three nats.go packages via `go/packages` with `Dir` = testdata; verify a unit test against the cached nats.go finds `Nats-Msg-Id` in both `nats` and `jetstream` and `Nats-Service-Error` in `micro`
-- [ ] 3.2 Implement the legacy symbol collection over `js.go`, `jsm.go`, `jserrors.go`, `kv.go`, `object.go`; verify a unit test finds `JetStreamContext`, `Subscription.Fetch`, `Msg.Ack`, `Conn.JetStream`, and does not find `MsgIdHdr` or `Conn.Publish`
-- [ ] 3.3 Add `internal/tablegen/cmd` and a `//go:generate` directive in `natsapi`; run it and commit `headers_table.go` and `legacy_table.go`; verify `go generate ./internal/natsapi && git diff --exit-code` is clean
-- [ ] 3.4 Add the drift test `TestTablesUpToDate` in `natsapi` (skips with a message when the testdata module is not downloaded); verify it passes, then temporarily edit one table entry and confirm it fails naming the difference, then revert
+- [x] 3.1 Implement `internal/tablegen.Generate(testdataDir)` loading the three nats.go packages via `go/packages` with `Dir` = testdata; verify a unit test against the cached nats.go finds `Nats-Msg-Id` in both `nats` and `jetstream` and `Nats-Service-Error` in `micro`
+- [x] 3.2 Implement the legacy symbol collection over `js.go`, `jsm.go`, `jserrors.go`, `kv.go`, `object.go`; verify a unit test finds `JetStreamContext`, `Subscription.Fetch`, `Msg.Ack`, `Conn.JetStream`, and does not find `MsgIdHdr` or `Conn.Publish`
+- [x] 3.3 Add `internal/tablegen/cmd` and a `//go:generate` directive in `natsapi`; run it and commit `headers_table.go` and `legacy_table.go`; verify `go generate ./internal/natsapi && git diff --exit-code` is clean
+- [x] 3.4 Add the drift test `TestTablesUpToDate` in `natsapi` (skips with a message when the testdata module is not downloaded); verify it passes, then temporarily edit one table entry and confirm it fails naming the difference, then revert
 
 ## 4. Rule headerkey
 

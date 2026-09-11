@@ -41,7 +41,7 @@ Empty repository; `docs/design.md` §2 fixes the architecture (`go/analysis`, no
 
 ## Risks / Trade-offs
 
-- [`multichecker` may not yet support being invoked as `go fix -fixtool`] → verify on the pinned x/tools in the first task; if it does not, `go vet` and `natsvet -fix` still cover the spec's fix path and the `go fix` scenario is downgraded to documentation until x/tools catches up.
+- [`multichecker` may not yet support being invoked as `go fix -fixtool`] → verified on x/tools v0.43.0 with Go 1.26: `go fix -x -fixtool=bin/natsvet` runs `natsvet -fix $WORK/.../vet.cfg` per package (the unitchecker protocol) and exits 0. No fallback needed.
 - [Module downloads blocked in sandboxed shells] → `make test` documents the download step; the step is run once outside the sandbox and everything after is offline.
 - [`go/packages` in the generator needs the full nats.go dependency closure cached] → `go mod download` in `testdata` covers it; the drift test skips with a clear message when the module is absent rather than failing confusingly.
 - [Header table carries nats.go's own typo `jetstream.TimeStampHeaer`] → the fix emits it verbatim; correct, if ugly. Not worked around.

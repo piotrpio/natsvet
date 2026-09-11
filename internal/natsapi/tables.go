@@ -1,0 +1,73 @@
+// Copyright 2026 Synadia Communications Inc.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package natsapi
+
+import (
+	"go/types"
+	"strings"
+	"sync"
+)
+
+// HeaderConst names a nats.go constant that defines a NATS header.
+type HeaderConst struct {
+	Pkg  Pkg
+	Name string
+}
+
+var (
+	headersOnce  sync.Once
+	headersLower map[string]string
+)
+
+// Header looks key up case-insensitively among the headers nats.go defines
+// and returns the canonical spelling and the constants that define it, in
+// fix preference order (jetstream, nats, micro).
+func Header(key string) (canonical string, consts []HeaderConst, ok bool) {
+	headersOnce.Do(func() {
+		headersLower = make(map[string]string, len(headers))
+		for h := range headers {
+			headersLower[strings.ToLower(h)] = h
+		}
+	})
+	canonical, ok = headersLower[strings.ToLower(key)]
+	if !ok {
+		return "", nil, false
+	}
+	return canonical, headers[canonical], true
+}
+
+// LegacySymbol returns the qualified name of obj ("nats.JetStreamContext",
+// "nats.JetStream.Publish", "nats.Durable") when it belongs to the legacy
+// JetStream API of package nats.
+func LegacySymbol(obj types.Object) (string, bool) {
+	if !IsPkg(obj, Core) {
+		return "", false
+	}
+	var key string
+	switch o := obj.(type) {
+	case *types.TypeName:
+		key = o.Name()
+	case *types.Func:
+		key = o.Name()
+		if r := o.Signature().Recv(); r != nil {
+			key = receiverName(r.Type()) + "." + key
+		}
+	default:
+		return "", false
+	}
+	if !legacySymbols[key] {
+		return "", false
+	}
+	return "nats." + key, true
+}
