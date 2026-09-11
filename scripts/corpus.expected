@@ -8,3 +8,21 @@
 # line here that the tool no longer reports.
 
 nats.go/test/js_test.go:345:15: header key "nats-expected-last-sequence" does not match "Nats-Expected-Last-Sequence"; nats.go header lookups are case-sensitive  # FP: the test miscases the header on purpose to prove the server ignores it
+nats.go/test/js_test.go:2156:30: stream config: stream name is required and can not contain '.', '*', '>', '\', '/' or whitespace  # FP: test asserts the client returns ErrStreamNameRequired / ErrInvalidStreamName
+nats.go/test/js_test.go:2159:30: stream config: stream name is required and can not contain '.', '*', '>', '\', '/' or whitespace  # FP: test asserts the client returns ErrStreamNameRequired / ErrInvalidStreamName
+nats.go/test/js_test.go:2162:30: stream config: stream name is required and can not contain '.', '*', '>', '\', '/' or whitespace  # FP: test asserts the client returns ErrStreamNameRequired / ErrInvalidStreamName
+nats.go/test/js_test.go:2180:33: stream config: stream name is required and can not contain '.', '*', '>', '\', '/' or whitespace  # FP: test asserts the client returns ErrStreamNameRequired / ErrInvalidStreamName
+nats.go/test/js_test.go:2183:33: stream config: stream name is required and can not contain '.', '*', '>', '\', '/' or whitespace  # FP: test asserts the client returns ErrStreamNameRequired / ErrInvalidStreamName
+nats.go/test/js_test.go:2395:37: consumer config: consumer cannot have both FilterSubject and FilterSubjects specified  # FP: test asserts the server rejects both filter fields
+nats.go/test/js_test.go:2403:36: consumer config: consumer subject filters cannot overlap  # FP: test asserts ErrOverlappingFilterSubjects
+nats.go/test/js_test.go:2410:36: consumer config: consumer filter in FilterSubjects cannot be empty  # FP: test asserts ErrEmptyFilter
+nats.go/test/js_test.go:2420:39: consumer config: invalid filter subject ".foo"  # FP: test asserts ErrInvalidFilterSubject
+nats.go/test/js_test.go:2423:39: consumer config: invalid filter subject "foo."  # FP: test asserts ErrInvalidFilterSubject
+nats.go/test/js_test.go:2429:39: consumer config: consumer durable name can not contain '.', '*', '>', '\', '/' or whitespace  # FP: test asserts ErrInvalidConsumerName
+nats.go/test/js_test.go:2432:39: consumer config: consumer durable name can not contain '.', '*', '>', '\', '/' or whitespace  # FP: test asserts ErrInvalidConsumerName
+nats.go/test/js_test.go:2465:36: consumer config: consumer durable name can not contain '.', '*', '>', '\', '/' or whitespace  # FP: test asserts ErrInvalidConsumerName
+nats.go/test/kv_test.go:422:22: invalid KV key filter "": filters may only contain [-/_=.a-zA-Z0-9*] and a trailing >  # FP: test asserts ErrInvalidKey for watch filters
+nats.go/test/kv_test.go:426:22: invalid KV key filter "a.>.b": filters may only contain [-/_=.a-zA-Z0-9*] and a trailing >  # FP: test asserts ErrInvalidKey for watch filters
+nats.go/test/kv_test.go:429:22: invalid KV key filter "foo.": filters may only contain [-/_=.a-zA-Z0-9*] and a trailing >  # FP: test asserts ErrInvalidKey for watch filters
+nats.go/test/kv_test.go:432:22: invalid KV key filter "foo..bar": filters may only contain [-/_=.a-zA-Z0-9*] and a trailing >  # FP: test asserts ErrInvalidKey for watch filters
+nats.go/test/object_test.go:41:34: invalid bucket name "notok!": bucket names may only contain [a-zA-Z0-9_-]  # FP: test asserts ErrInvalidStoreName

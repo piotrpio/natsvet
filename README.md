@@ -32,6 +32,9 @@ Default-on rules can be turned off with `-<rule>=false`; opt-in rules are enable
 
 | Rule | Default | Fix | Reports |
 |------|---------|-----|---------|
+| `consumerconfig` | on | no | a `ConsumerConfig` literal the server rejects in `checkConsumerCfg`: overlapping or empty filters, deliver policy vs start options, heartbeat or flow control on a pull consumer, priority policy without groups, and more |
+| `streamconfig` | on | no | a `StreamConfig` literal the server rejects in `checkStreamCfgLocked`: invalid or overlapping subjects, replicas > 5, windows under 100ms, mirror with subjects or sources, and more |
+| `kvconfig` | on | no | a KV or object store bucket name, history, or key that nats.go rejects client-side (`ErrInvalidBucketName`, `ErrHistoryTooLarge`, `ErrInvalidKey`) |
 | `headerkey` | on | yes | a header key that differs only in case from a NATS header (`nats-msg-id` vs `Nats-Msg-Id`); nats.go header lookups are case-sensitive, so the lookup silently fails |
 | `legacyjs` | opt-in | no | every use of the legacy `nats.JetStreamContext` / `nats.KeyValue` / `nats.ObjectStore` API, as an inventory for migrating to the `jetstream` package |
 

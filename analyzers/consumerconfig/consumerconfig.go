@@ -63,13 +63,23 @@ const maxDescription = 4096
 
 func run(pass *analysis.Pass) (any, error) {
 	ins := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	ins.Preorder([]ast.Node{(*ast.CompositeLit)(nil)}, func(n ast.Node) {
+	mutates := make(map[*ast.BlockStmt]bool)
+	ins.WithStack([]ast.Node{(*ast.CompositeLit)(nil)}, func(n ast.Node, push bool, stack []ast.Node) bool {
+		if !push {
+			return false
+		}
 		lit := n.(*ast.CompositeLit)
 		fields, matched, ok := natsapi.CompositeFields(pass.TypesInfo, lit, jsConfig, jsOrdered, legacyConfig)
 		if !ok {
-			return
+			return true
 		}
-		c := &cfg{natsapi.NewFields(pass.TypesInfo, fields, matched == legacyConfig, legacyAliases)}
+		c := &cfg{Fields: natsapi.NewFields(pass.TypesInfo, fields, matched == legacyConfig, legacyAliases)}
+		if body := natsapi.EnclosingFuncBody(stack); body != nil {
+			if _, seen := mutates[body]; !seen {
+				mutates[body] = natsapi.AssignsField(body, "DeliverSubject")
+			}
+			c.deliverSubjectAssigned = mutates[body]
+		}
 		report := func(msg string) {
 			pass.Report(analysis.Diagnostic{
 				Pos:      lit.Pos(),
@@ -81,6 +91,7 @@ func run(pass *analysis.Pass) (any, error) {
 		for _, check := range checks {
 			check(c, report)
 		}
+		return true
 	})
 	return nil, nil
 }
@@ -89,13 +100,18 @@ func run(pass *analysis.Pass) (any, error) {
 // derived from DeliverSubject.
 type cfg struct {
 	*natsapi.Fields
+	// deliverSubjectAssigned is set when the enclosing function assigns a
+	// DeliverSubject field somewhere: a literal without one may still
+	// become a push consumer, so pull-only checks are unsafe.
+	deliverSubjectAssigned bool
 }
 
 // mode reports whether the literal is a push consumer (constant non-empty
-// DeliverSubject) or a pull consumer (absent or empty), when known.
+// DeliverSubject) or a pull consumer (absent or empty and never assigned
+// later in the function), when known.
 func (c *cfg) mode() (push, pull bool) {
 	ds, ok := c.Str("DeliverSubject")
-	return ok && ds != "", ok && ds == ""
+	return ok && ds != "", ok && ds == "" && !c.deliverSubjectAssigned
 }
 
 var checks = []func(c *cfg, report func(string)){

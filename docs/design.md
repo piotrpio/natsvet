@@ -228,9 +228,11 @@ are out of scope: the rule cannot see them.
   6. push: `DeliverSubject` not a literal subject (contains a `*`/`>` token) or failing
      `IsValidSubject`; `MaxWaiting != 0`; `MaxAckPending > 0 && AckPolicy == AckNonePolicy`
      (push only); `IdleHeartbeat` in `(0, 100ms)`.
-  7. pull: `RateLimit > 0`; `MaxWaiting < 0`; `IdleHeartbeat > 0` (heartbeat is a
-     pull-request option, not a config field); `FlowControl`; `MaxRequestBatch < 0`;
-     `MaxRequestExpires` in `(0, 1ms)`.
+  7. pull (`DeliverSubject` absent or `""`, and no assignment to a `DeliverSubject`
+     field anywhere in the enclosing function, since a stored literal may be completed
+     into a push consumer later): `RateLimit > 0`; `MaxWaiting < 0`; `IdleHeartbeat > 0`
+     (heartbeat is a pull-request option, not a config field); `FlowControl`;
+     `MaxRequestBatch < 0`; `MaxRequestExpires` in `(0, 1ms)`.
   8. `FilterSubject` non-empty and `FilterSubjects` non-empty.
   9. `FilterSubject` failing `IsValidSubject`; a `FilterSubjects` element that is `""` or
      fails `IsValidSubject`.
@@ -251,6 +253,9 @@ are out of scope: the rule cannot see them.
       empty, or with an element that is `""` or fails the server's `validGroupName`;
       `PriorityPolicy` absent or `PriorityNone` with `PriorityGroups` non-empty or
       `PinnedTTL > 0`.
+  17. `AckPolicy == AckFlowControlPolicy` without push, without `FlowControl`, with
+      `IdleHeartbeat` other than exactly 1s, with `MaxAckPending <= 0`, with `AckWait` or
+      `BackOff` set, or with `MaxDeliver > 0`.
 - **Message**: `consumer config: <server's wording>`, e.g.
   `consumer config: FilterSubject and FilterSubjects cannot both be set`.
 - **Fix**: none. (Which field the user meant is ambiguous.)
@@ -313,7 +318,8 @@ Client-side validations in nats.go `jetstream/kv.go` that return `ErrInvalidBuck
   and `jetstream/object.go` `CreateObjectStore`):
   1. `Bucket` constant not matching `validBucketRe` (`ErrInvalidBucketName`,
      `ErrInvalidStoreName`).
-  2. `History` constant `> 64` (`jetstream.KeyValueMaxHistory`) or `< 0`.
+  2. `History` constant `> 64` (`jetstream.KeyValueMaxHistory`). Values `<= 0` default to 1
+     and are accepted.
   3. Key constant that is empty, starts or ends with `.`, contains `..`, or fails
      `validKeyRe` (`validSearchKeyRe` for `Watch*`/`ListKeysFiltered`).
 - **Message**: `invalid KV key "foo bar": keys may only contain [-/_=.a-zA-Z0-9]`;

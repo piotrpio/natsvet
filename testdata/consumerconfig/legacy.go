@@ -26,3 +26,14 @@ var _ = []nats.ConsumerConfig{
 	{DeliverPolicy: nats.DeliverByStartSequencePolicy},                       // want `consumer config: consumer delivery policy is deliver by start sequence, but optional start sequence is not set`
 	{Durable: "w", AckPolicy: nats.AckExplicitPolicy, FilterSubject: "orders.>"},
 }
+
+func mutated() {
+	cc := nats.ConsumerConfig{Heartbeat: 5 * time.Second, RateLimit: 10}
+	cc.DeliverSubject = "d"
+	_ = cc
+}
+
+func pullLiteralStored() {
+	cc := nats.ConsumerConfig{Heartbeat: 5 * time.Second} // want `consumer config: consumer idle heartbeat requires a push based consumer`
+	_ = cc
+}

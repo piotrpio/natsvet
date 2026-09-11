@@ -25,6 +25,6 @@
 
 ## 5. Corpus and docs
 
-- [ ] 5.1 Run `make corpus`; triage every new line into `scripts/corpus.expected` with `TP` or `FP` and a reason (open an upstream issue or PR for each `TP` and note it in the reason); verify a second `make corpus` passes
-- [ ] 5.2 Extend the README rule table with the three rules and refresh `docs/design.md` §3.1 where the specs corrected it (`MaxAckPending`+`AckNone` push-only; KV `History` negative accepted); verify the table matches `Analyzers()`
-- [ ] 5.3 Run `gofmt -l .`, `go vet ./...`, `staticcheck ./...`, `misspell -locale US .`, `make lint` and `make test` (with the testdata download step); verify all pass with no output from gofmt and misspell
+- [x] 5.1 Run `make corpus`; triage every new line into `scripts/corpus.expected` with `TP` or `FP` and a reason (open an upstream issue or PR for each `TP` and note it in the reason); verify a second `make corpus` passes
+- [x] 5.2 Extend the README rule table with the three rules and refresh `docs/design.md` §3.1 where the specs corrected it (`MaxAckPending`+`AckNone` push-only; KV `History` negative accepted); verify the table matches `Analyzers()`
+- [x] 5.3 Run `gofmt -l .`, `go vet ./...`, `staticcheck ./...`, `misspell -locale US .`, `make lint` and `make test` (with the testdata download step); verify all pass with no output from gofmt and misspell

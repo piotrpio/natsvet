@@ -107,7 +107,7 @@ Mirrors the `DeliverSubject != ""` branch of `checkConsumerCfg`. When `DeliverSu
 - **THEN** the rule reports nothing
 
 ### Requirement: Pull-only constraints
-Mirrors the `DeliverSubject == ""` branch of `checkConsumerCfg`. When `DeliverSubject` is absent or `""` the rule SHALL report: `RateLimit > 0` with `consumer config: consumer in pull mode can not have rate limit set`; `MaxWaiting < 0` with `consumer config: consumer max waiting needs to be positive`; `IdleHeartbeat > 0` with `consumer config: consumer idle heartbeat requires a push based consumer`; `FlowControl: true` with `consumer config: consumer flow control requires a push based consumer`; `MaxRequestBatch < 0` with `consumer config: consumer max request batch needs to be > 0`; `MaxRequestExpires` in `(0, 1ms)` with `consumer config: consumer max request expires needs to be >= 1ms`.
+Mirrors the `DeliverSubject == ""` branch of `checkConsumerCfg`. When `DeliverSubject` is absent or `""`, and no assignment statement in the enclosing function writes a `DeliverSubject` field (a literal stored in a variable and completed later may become a push consumer), the rule SHALL report: `RateLimit > 0` with `consumer config: consumer in pull mode can not have rate limit set`; `MaxWaiting < 0` with `consumer config: consumer max waiting needs to be positive`; `IdleHeartbeat > 0` with `consumer config: consumer idle heartbeat requires a push based consumer`; `FlowControl: true` with `consumer config: consumer flow control requires a push based consumer`; `MaxRequestBatch < 0` with `consumer config: consumer max request batch needs to be > 0`; `MaxRequestExpires` in `(0, 1ms)` with `consumer config: consumer max request expires needs to be >= 1ms`.
 
 #### Scenario: Heartbeat on a pull consumer
 - **WHEN** a literal has `Durable: "w"` and `IdleHeartbeat: 5 * time.Second` and no `DeliverSubject`
@@ -128,6 +128,14 @@ Mirrors the `DeliverSubject == ""` branch of `checkConsumerCfg`. When `DeliverSu
 #### Scenario: Valid pull consumer
 - **WHEN** a literal has `Durable: "w"`, `MaxWaiting: 512`, `MaxRequestBatch: 100`, `MaxRequestExpires: time.Second`
 - **THEN** the rule reports nothing
+
+#### Scenario: DeliverSubject assigned after the literal
+- **WHEN** a function has `cc := nats.ConsumerConfig{Heartbeat: 5 * time.Second}` followed by `cc.DeliverSubject = "d"`
+- **THEN** the rule reports nothing for the pull-only checks
+
+#### Scenario: Literal stored without later assignment
+- **WHEN** a function has `cc := nats.ConsumerConfig{Heartbeat: 5 * time.Second}` and never assigns a `DeliverSubject`
+- **THEN** the rule reports the heartbeat message
 
 ### Requirement: Filter subjects are consistent
 Mirrors `checkConsumerCfg`. The rule SHALL report: `FilterSubject` non-empty together with a non-empty `FilterSubjects` slice literal with `consumer config: consumer cannot have both FilterSubject and FilterSubjects specified`; a `FilterSubjects` element that is `""` with `consumer config: consumer filter in FilterSubjects cannot be empty`; `FilterSubject` or a `FilterSubjects` element failing `IsValidSubject` with `consumer config: invalid filter subject "<subject>"`; two constant filters (from `FilterSubjects`, or `FilterSubject` combined with them) where either is a subset match of the other (`subjectIsSubsetMatch`) with `consumer config: consumer subject filters cannot overlap`. These checks SHALL also apply to `jetstream.OrderedConsumerConfig.FilterSubjects`.
