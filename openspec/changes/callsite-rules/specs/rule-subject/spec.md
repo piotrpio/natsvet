@@ -16,7 +16,7 @@ The rule SHALL examine constant string expressions in these positions: the subje
 - **THEN** the rule reports nothing
 
 ### Requirement: Invalid subjects are reported everywhere
-Mirrors nats.go `validateSubject`/`badSubject` and nats-server `IsValidSubject`. The rule SHALL report a constant subject that is empty, has an empty token, contains whitespace, or has a `>` token that is not last, with `subject "<s>" is invalid: <reason>` where reason is one of `empty subject`, `empty token`, `contains whitespace`, `'>' must be the last token`.
+Mirrors nats.go `validateSubject`/`badSubject` and nats-server `IsValidSubject`. The rule SHALL report a constant subject that is empty (except on the legacy `nats.JetStream` subscribe methods, where an empty subject is valid with `Bind`/`BindStream`), has an empty token, contains whitespace, or has a `>` token that is not last, with `subject "<s>" is invalid: <reason>` where reason is one of `empty subject`, `empty token`, `contains whitespace`, `'>' must be the last token`.
 
 #### Scenario: Empty token
 - **WHEN** code calls `nc.Subscribe("foo..bar", handler)`
@@ -33,6 +33,10 @@ Mirrors nats.go `validateSubject`/`badSubject` and nats-server `IsValidSubject`.
 #### Scenario: Empty subject
 - **WHEN** code writes `nats.Msg{Subject: ""}`
 - **THEN** the rule reports `subject "" is invalid: empty subject`
+
+#### Scenario: Empty subject on a legacy JetStream subscribe
+- **WHEN** code calls `js.SubscribeSync("", nats.BindStream("ORDERS"))` or `js.PullSubscribe("", "d", nats.Bind("ORDERS", "d"))` on a legacy `nats.JetStreamContext`
+- **THEN** the rule reports nothing: nats.go accepts an empty subject when a stream is bound (`js.go`: "subject required" only without a stream), and the binding option is often behind a variadic `opts...`
 
 #### Scenario: Reply subject
 - **WHEN** code calls `nc.PublishRequest("req", "reply..x", nil)`

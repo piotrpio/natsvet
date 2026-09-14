@@ -60,13 +60,17 @@ type methodHook struct {
 	reply   int
 	queue   int
 	publish bool
+	// emptyOK marks the legacy JetStream subscribe methods, where an empty
+	// subject is valid when a stream is bound with Bind or BindStream
+	// (js.go: "subject required" only without a stream).
+	emptyOK bool
 }
 
 var methodHooks = func() []methodHook {
 	var hs []methodHook
 	add := func(pkg natsapi.Pkg, recv string, subj, reply, queue int, publish bool, names ...string) {
 		for _, n := range names {
-			hs = append(hs, methodHook{pkg, recv, n, subj, reply, queue, publish})
+			hs = append(hs, methodHook{pkg, recv, n, subj, reply, queue, publish, pkg == natsapi.Core && recv == "JetStream" && !publish})
 		}
 	}
 	add(natsapi.Core, "Conn", 0, -1, -1, true, "Publish", "Request")
@@ -110,9 +114,9 @@ func run(pass *analysis.Pass) (any, error) {
 	report := func(e ast.Expr, msg string) {
 		pass.Report(analysis.Diagnostic{Pos: e.Pos(), End: e.End(), Category: name, Message: msg})
 	}
-	checkSubject := func(e ast.Expr, publish bool) {
+	checkSubject := func(e ast.Expr, publish, emptyOK bool) {
 		s, ok := natsapi.ConstString(info, e)
-		if !ok {
+		if !ok || s == "" && emptyOK {
 			return
 		}
 		if reason, bad := subjectInvalid(s); bad {
@@ -137,7 +141,7 @@ func run(pass *analysis.Pass) (any, error) {
 			}
 			for _, h := range funcHooks {
 				if natsapi.IsFunc(fn, h.pkg, h.name) && len(n.Args) > 0 {
-					checkSubject(n.Args[0], h.publish)
+					checkSubject(n.Args[0], h.publish, false)
 					return
 				}
 			}
@@ -146,10 +150,10 @@ func run(pass *analysis.Pass) (any, error) {
 					continue
 				}
 				if h.subj < len(n.Args) {
-					checkSubject(n.Args[h.subj], h.publish)
+					checkSubject(n.Args[h.subj], h.publish, h.emptyOK)
 				}
 				if h.reply >= 0 && h.reply < len(n.Args) {
-					checkSubject(n.Args[h.reply], h.publish)
+					checkSubject(n.Args[h.reply], h.publish, false)
 				}
 				if h.queue >= 0 && h.queue < len(n.Args) {
 					checkQueue(n.Args[h.queue])
@@ -170,7 +174,7 @@ func run(pass *analysis.Pass) (any, error) {
 					if h.queue {
 						checkQueue(e)
 					} else {
-						checkSubject(e, h.publish)
+						checkSubject(e, h.publish, false)
 					}
 				}
 				return

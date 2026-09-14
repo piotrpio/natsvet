@@ -22,4 +22,7 @@ func legacy(js nats.JetStreamContext) {
 	_, _ = js.QueueSubscribe("orders", "a b", handler) // want `queue group "a b" contains whitespace`
 	_, _ = js.PullSubscribe("orders.>.x", "d")         // want `subject "orders.>.x" is invalid: '>' must be the last token`
 	_, _ = js.QueueSubscribe("orders", "", handler)
+	_, _ = js.SubscribeSync("", nats.BindStream("ORDERS"))
+	_, _ = js.PullSubscribe("", "d", nats.Bind("ORDERS", "d"))
+	_, _ = js.Publish("", nil) // want `subject "" is invalid: empty subject`
 }

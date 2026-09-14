@@ -26,3 +26,14 @@ nats.go/test/kv_test.go:426:22: invalid KV key filter "a.>.b": filters may only 
 nats.go/test/kv_test.go:429:22: invalid KV key filter "foo.": filters may only contain [-/_=.a-zA-Z0-9*] and a trailing >  # FP: test asserts ErrInvalidKey for watch filters
 nats.go/test/kv_test.go:432:22: invalid KV key filter "foo..bar": filters may only contain [-/_=.a-zA-Z0-9*] and a trailing >  # FP: test asserts ErrInvalidKey for watch filters
 nats.go/test/object_test.go:41:34: invalid bucket name "notok!": bucket names may only contain [a-zA-Z0-9_-]  # FP: test asserts ErrInvalidStoreName
+nats.go/test/basic_test.go:788:24: subject "" is invalid: empty subject  # FP: TestBadSubject asserts ErrBadSubject
+nats.go/test/basic_test.go:791:24: subject "foo bar" is invalid: contains whitespace  # FP: TestBadSubject asserts ErrBadSubject
+nats.go/test/basic_test.go:794:43: subject "bar baz" is invalid: contains whitespace  # FP: TestBadSubject asserts ErrBadSubject
+nats.go/test/conn_test.go:624:27: duration 10 for NextMsg is 10ns; multiply by a time unit such as time.Second or time.Millisecond  # FP: NextMsg on a closed connection; the timeout is irrelevant and the test asserts ErrConnectionClosed
+nats.go/test/context_test.go:106:39: RequestMsgWithContext with a context that has no deadline blocks forever if a responder exists but never replies; use context.WithTimeout  # FP: test subscribes its own responder first; the request cannot hang
+nats.go/test/context_test.go:632:12: NextMsg on a subscription created with Subscribe (callback) always returns ErrSyncSubRequired; use SubscribeSync  # FP: test asserts NextMsgWithContext fails on a callback subscription
+nats.go/test/context_test.go:736:12: NextMsg on a subscription created with Subscribe (callback) always returns ErrSyncSubRequired; use SubscribeSync  # FP: test asserts the nil-context error on a callback subscription
+nats.go/test/js_test.go:1651:32: FetchBatch with nats.Context(context.Background()) returns ErrNoDeadlineContext; use nats.MaxWait or a context with a deadline  # FP: test asserts ErrNoDeadlineContext
+nats.go/test/js_test.go:9871:32: Fetch with nats.Context(context.Background()) returns ErrNoDeadlineContext; use nats.MaxWait or a context with a deadline  # FP: test asserts ErrNoDeadlineContext
+nats.go/test/sub_test.go:720:12: NextMsg on a subscription created with Subscribe (callback) always returns ErrSyncSubRequired; use SubscribeSync  # FP: test asserts ErrSyncSubRequired
+natscli/internal/util/header_test.go:46:21: subject "" is invalid: empty subject  # FP: NewMsg builds a header container that is never published

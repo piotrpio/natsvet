@@ -37,6 +37,6 @@
 
 ## 8. Corpus and docs
 
-- [ ] 8.1 Run `make corpus`; triage every new line into `scripts/corpus.expected` with `TP` or `FP` and a reason; revisit the `subject` field hook and the `ctxdeadline` request half per the design's risk notes if the numbers say so; verify a second `make corpus` passes
-- [ ] 8.2 Extend the README rule table with the six rules; verify the table matches `Analyzers()`
-- [ ] 8.3 Run `gofmt -l .`, `go vet ./...`, `staticcheck ./...`, `misspell -locale US .`, `make lint` and `make test` (with the testdata download step); verify all pass with no output from gofmt and misspell
+- [x] 8.1 Run `make corpus`; triage every new line into `scripts/corpus.expected` with `TP` or `FP` and a reason; revisit the `subject` field hook and the `ctxdeadline` request half per the design's risk notes if the numbers say so; verify a second `make corpus` passes
+- [x] 8.2 Extend the README rule table with the six rules; verify the table matches `Analyzers()`
+- [x] 8.3 Run `gofmt -l .`, `go vet ./...`, `staticcheck ./...`, `misspell -locale US .`, `make lint` and `make test` (with the testdata download step); verify all pass with no output from gofmt and misspell
