@@ -100,18 +100,14 @@ func run(pass *analysis.Pass) (any, error) {
 	report := func(n ast.Node, msg string) {
 		pass.Report(analysis.Diagnostic{Pos: n.Pos(), End: n.End(), Category: name, Message: msg})
 	}
-	assigned := make(map[*ast.BlockStmt]map[string]bool)
+	masker := natsapi.NewMasker(pass.TypesInfo)
 	ins.WithStack([]ast.Node{(*ast.CompositeLit)(nil), (*ast.CallExpr)(nil)}, func(n ast.Node, push bool, stack []ast.Node) bool {
 		if !push {
 			return false
 		}
 		switch n := n.(type) {
 		case *ast.CompositeLit:
-			body := natsapi.EnclosingFuncBody(stack)
-			if _, seen := assigned[body]; !seen {
-				assigned[body] = natsapi.AssignedFields(body)
-			}
-			checkConfig(pass, n, assigned[body], report)
+			checkConfig(pass, n, masker.Masked(stack), report)
 		case *ast.CallExpr:
 			checkCall(pass, n, report)
 		}

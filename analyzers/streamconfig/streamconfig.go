@@ -62,7 +62,7 @@ const (
 
 func run(pass *analysis.Pass) (any, error) {
 	ins := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	assigned := make(map[*ast.BlockStmt]map[string]bool)
+	masker := natsapi.NewMasker(pass.TypesInfo)
 	ins.WithStack([]ast.Node{(*ast.CompositeLit)(nil)}, func(n ast.Node, push bool, stack []ast.Node) bool {
 		if !push {
 			return false
@@ -72,11 +72,7 @@ func run(pass *analysis.Pass) (any, error) {
 		if !ok {
 			return true
 		}
-		body := natsapi.EnclosingFuncBody(stack)
-		if _, seen := assigned[body]; !seen {
-			assigned[body] = natsapi.AssignedFields(body)
-		}
-		c := natsapi.NewFields(pass.TypesInfo, fields, matched == legacyConfig, nil, assigned[body])
+		c := natsapi.NewFields(pass.TypesInfo, fields, matched == legacyConfig, nil, masker.Masked(stack))
 		report := func(msg string) {
 			pass.Report(analysis.Diagnostic{
 				Pos:      lit.Pos(),

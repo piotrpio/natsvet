@@ -5,7 +5,7 @@ consumerconfig reports consumer configurations that nats-server rejects at creat
 ## ADDED Requirements
 
 ### Requirement: Only constant fields of consumer config literals are examined
-The rule SHALL examine composite literals whose type is `jetstream.ConsumerConfig`, `jetstream.OrderedConsumerConfig` or legacy `nats.ConsumerConfig`, directly, through `&T{...}`, and as elements of slices or maps of those types. A field SHALL take part in a check only when it is present in the literal with a compile-time constant value (or a slice literal of constants, or `nil`); a field set from a variable or call makes every check that involves it inapplicable. An absent field has the type's zero value. A field that any assignment or increment statement in the enclosing function writes (`x.<Field> = ...`, on any receiver) SHALL be unknown for every literal in that function, whether or not the literal sets it: a literal stored in a variable may be completed or changed before use. Field names below are the `jetstream` ones; the legacy twin `nats.ConsumerConfig.Heartbeat` corresponds to `IdleHeartbeat`. Each diagnostic SHALL be reported at the literal, carry category `consumerconfig`, and read `consumer config: <server wording>`.
+The rule SHALL examine composite literals whose type is `jetstream.ConsumerConfig`, `jetstream.OrderedConsumerConfig` or legacy `nats.ConsumerConfig`, directly, through `&T{...}`, and as elements of slices or maps of those types. A field SHALL take part in a check only when it is present in the literal with a compile-time constant value (or a slice literal of constants, or `nil`); a field set from a variable or call makes every check that involves it inapplicable. An absent field has the type's zero value. A literal that is a direct call argument or return value is checked as written. A literal bound to a variable is checked as written only up to the point where the variable is handed off — passed to a call by value, returned, sent on a channel, or passed by pointer to a nats.go method — and any field assigned (`x.<Field> = ...`, on any receiver) before that point SHALL be unknown, whether or not the literal sets it. If before the hand-off a pointer to the variable reaches any other call, the variable is a method receiver, or it is captured by a closure, or no hand-off is found in the block, every field assigned anywhere in the function SHALL be unknown instead. Field names below are the `jetstream` ones; the legacy twin `nats.ConsumerConfig.Heartbeat` corresponds to `IdleHeartbeat`. Each diagnostic SHALL be reported at the literal, carry category `consumerconfig`, and read `consumer config: <server wording>`.
 
 #### Scenario: Field from a variable disables the check
 - **WHEN** a literal has `FilterSubject: subj` and `FilterSubjects: []string{"a"}` where `subj` is a variable
@@ -30,6 +30,22 @@ The rule SHALL examine composite literals whose type is `jetstream.ConsumerConfi
 #### Scenario: Unrelated field assigned later
 - **WHEN** a function has `cfg := jetstream.ConsumerConfig{Durable: "a.b"}` followed by `cfg.FilterSubject = "x"`
 - **THEN** the rule still reports the durable-name message
+
+#### Scenario: Template config used before it is changed
+- **WHEN** a function has `cfg := jetstream.ConsumerConfig{Durable: "a", IdleHeartbeat: 5 * time.Second}`, then `js.CreateConsumer(ctx, "S", cfg)`, then `cfg.DeliverSubject = "d"` and a second `CreateConsumer`
+- **THEN** the rule reports the heartbeat message on the literal: the first call submits it as written
+
+#### Scenario: Passed by value to a wrapper before it is changed
+- **WHEN** a function has `cfg := jetstream.ConsumerConfig{Durable: "w.x"}`, then `createCons(cfg)`, then `cfg.Durable = "w"`
+- **THEN** the rule reports the durable-name message
+
+#### Scenario: Passed by pointer to a wrapper
+- **WHEN** a function has `cfg := jetstream.ConsumerConfig{IdleHeartbeat: 5 * time.Second}`, then `fill(&cfg)`, then `cfg.DeliverSubject = "d"`
+- **THEN** the rule reports nothing: the wrapper may change the config before submitting it
+
+#### Scenario: Inline literal next to unrelated assignments
+- **WHEN** a function passes `jetstream.ConsumerConfig{Durable: "in.line"}` directly to `CreateConsumer` and elsewhere assigns `other.Name = ...`
+- **THEN** the rule reports the durable-name message: a temporary cannot be changed
 
 ### Requirement: Consumer names are valid asset names
 Mirrors `checkConsumerCfg` via `isValidAssetName`. The rule SHALL report `Name` or `Durable` when the constant is non-empty and contains any of `.`, `*`, `>`, `\`, `/`, or whitespace (space, tab, CR, LF, form feed). Messages: `consumer config: consumer name can not contain '.', '*', '>', '\', '/' or whitespace` and `consumer config: consumer durable name can not contain '.', '*', '>', '\', '/' or whitespace`.

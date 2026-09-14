@@ -40,7 +40,13 @@ const (
 // IsPkg reports whether obj is declared in pkg, directly or through a
 // vendor directory.
 func IsPkg(obj types.Object, pkg Pkg) bool {
-	if obj == nil || obj.Pkg() == nil {
+	if obj == nil {
+		return false
+	}
+	if fn, ok := obj.(*types.Func); ok && fn == nil {
+		return false
+	}
+	if obj.Pkg() == nil {
 		return false
 	}
 	return IsPkgPath(obj.Pkg().Path(), pkg)

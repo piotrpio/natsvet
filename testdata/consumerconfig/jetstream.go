@@ -14,6 +14,7 @@
 package consumerconfig
 
 import (
+	"context"
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -140,3 +141,30 @@ func completedLater() {
 	fixed.FilterSubject = "x"
 	_ = fixed
 }
+
+func templateConfig(js jetstream.JetStream) {
+	cfg := jetstream.ConsumerConfig{Durable: "a", IdleHeartbeat: 5 * time.Second} // want `consumer config: consumer idle heartbeat requires a push based consumer`
+	_, _ = js.CreateConsumer(ctx, "S", cfg)
+	cfg.Durable = "b"
+	cfg.DeliverSubject = "deliver.b"
+	_, _ = js.CreateConsumer(ctx, "S", cfg)
+
+	byWrapper := jetstream.ConsumerConfig{Durable: "w.x"} // want `consumer config: consumer durable name can not contain`
+	createCons(byWrapper)
+	byWrapper.Durable = "w"
+	createCons(byWrapper)
+
+	byPointer := jetstream.ConsumerConfig{IdleHeartbeat: 5 * time.Second}
+	fillAndCreate(&byPointer)
+	byPointer.DeliverSubject = "d"
+
+	_, _ = js.CreateConsumer(ctx, "S", jetstream.ConsumerConfig{Durable: "in.line"}) // want `consumer config: consumer durable name can not contain`
+	var unrelated jetstream.StreamConfig
+	unrelated.Name = "masks nothing for the inline literal above"
+	_ = unrelated
+}
+
+func createCons(cfg jetstream.ConsumerConfig)     {}
+func fillAndCreate(cfg *jetstream.ConsumerConfig) {}
+
+var ctx = context.Background()

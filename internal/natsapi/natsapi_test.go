@@ -85,6 +85,12 @@ func TestIsPkg(t *testing.T) {
 			t.Error("IsPkg(nil) = true")
 		}
 	})
+	t.Run("typed nil func", func(t *testing.T) {
+		var fn *types.Func
+		if IsPkg(fn, Core) {
+			t.Error("IsPkg(typed nil) = true")
+		}
+	})
 	t.Run("universe object", func(t *testing.T) {
 		if IsPkg(types.Universe.Lookup("len"), Core) {
 			t.Error("IsPkg(len) = true")

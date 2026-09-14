@@ -136,11 +136,13 @@ natsvet/
   (`checkConsumerCfg`, `checkStreamCfgLocked`, `keyValid`, ...) in the rule's spec. When
   a rule is implemented its check list is re-derived from that function line by line,
   not copied from this document.
-- Config rules read constants from the composite literal only. A field that the
-  enclosing function assigns anywhere (`cfg.X = ...`) is unknown for every literal in
-  that function, present or not: a stored literal may be completed or changed before
-  use, and checks that interpret an absent field as its zero value would otherwise
-  misfire. Mutation through another function is a known, accepted hole.
+- Config rules check what reaches the server. A literal passed directly to a call or
+  returned is checked as written. A literal bound to a variable is checked as written
+  up to the first hand-off (by-value call argument, return, channel send, or pointer
+  argument to a nats.go method); fields assigned before that point are unknown. A
+  pointer escaping to another call, a method call on the variable, a closure capture,
+  or no hand-off at all falls back to treating every field assigned anywhere in the
+  function as unknown. Mutation inside another function is a known, accepted hole.
 - No cross-package facts. Each rule reasons only about the package being analyzed.
 - `pass.Module` (module path/version of the analyzed package) is available in recent
   x/tools drivers but is not needed: if an API does not exist in the user's nats.go
