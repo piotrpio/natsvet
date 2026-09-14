@@ -17,8 +17,8 @@
 
 ## 4. Rule ctxdeadline
 
-- [ ] 4.1 Write `testdata/ctxdeadline/ctxdeadline.go` with one `// want` line per scenario (Background/TODO to each of the four methods, variable, derived context, jetstream exempt, legacy `Fetch`/`FetchBatch` with `nats.Context(Background/TODO)`, `Subscribe` with the option exempt); verify the test fails before the analyzer exists
-- [ ] 4.2 Implement `analyzers/ctxdeadline`; verify the analysistest passes and register it in `Analyzers()`
+- [x] 4.1 Write `testdata/ctxdeadline/ctxdeadline.go` with one `// want` line per scenario (Background/TODO to each of the four methods, variable, derived context, jetstream exempt, legacy `Fetch`/`FetchBatch` with `nats.Context(Background/TODO)`, `Subscribe` with the option exempt); verify the test fails before the analyzer exists
+- [x] 4.2 Implement `analyzers/ctxdeadline`; verify the analysistest passes and register it in `Analyzers()`
 
 ## 5. Rule syncsub
 

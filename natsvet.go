@@ -21,6 +21,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 
 	"github.com/piotrpio/natsvet/analyzers/consumerconfig"
+	"github.com/piotrpio/natsvet/analyzers/ctxdeadline"
 	"github.com/piotrpio/natsvet/analyzers/duration"
 	"github.com/piotrpio/natsvet/analyzers/headerkey"
 	"github.com/piotrpio/natsvet/analyzers/kvconfig"
@@ -33,6 +34,7 @@ import (
 func Analyzers() []*analysis.Analyzer {
 	return []*analysis.Analyzer{
 		consumerconfig.Analyzer,
+		ctxdeadline.Analyzer,
 		duration.Analyzer,
 		headerkey.Analyzer,
 		kvconfig.Analyzer,
