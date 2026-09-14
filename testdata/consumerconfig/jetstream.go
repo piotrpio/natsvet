@@ -15,6 +15,7 @@ package consumerconfig
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -157,6 +158,11 @@ func templateConfig(js jetstream.JetStream) {
 	byPointer := jetstream.ConsumerConfig{IdleHeartbeat: 5 * time.Second}
 	fillAndCreate(&byPointer)
 	byPointer.DeliverSubject = "d"
+
+	logged := jetstream.ConsumerConfig{IdleHeartbeat: 5 * time.Second}
+	log.Printf("creating %v", logged)
+	logged.DeliverSubject = "deliver.l"
+	_, _ = js.CreateConsumer(ctx, "S", logged)
 
 	_, _ = js.CreateConsumer(ctx, "S", jetstream.ConsumerConfig{Durable: "in.line"}) // want `consumer config: consumer durable name can not contain`
 	var unrelated jetstream.StreamConfig

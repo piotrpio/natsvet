@@ -160,6 +160,21 @@ func funcValue(js JS) {
 	cfg.DeliverSubject = "d"
 }
 
+func loggedThenFixed(js JS) {
+	cfg := Config{Heartbeat: 5}
+	fmt.Printf("creating %v", cfg)
+	cfg.DeliverSubject = "d"
+	js.SubmitV(cfg)
+}
+
+func genericByValue(js JS) {
+	cfg := Config{Heartbeat: 5}
+	use(cfg)
+	cfg.DeliverSubject = "d"
+}
+
+func use[T any](v T) {}
+
 func storedInField(js JS) {
 	var h struct{ c Config }
 	h.c = Config{Heartbeat: 5}
@@ -189,8 +204,10 @@ func TestMasker(t *testing.T) {
 		"table":                "DeliverSubject", // no hand-off of tests: whole function
 		"neverUsed":            "",               // whole function, nothing assigned
 		"varDecl":              "",
-		"printed":              "",                 // fmt.Println is a by-value hand-off
+		"printed":              "DeliverSubject",   // fmt.Println takes any: not a hand-off
 		"funcValue":            "DeliverSubject",   // call through a func value: pointer escape
+		"loggedThenFixed":      "DeliverSubject",   // the logger takes any; the submission comes after the fix
+		"genericByValue":       "",                 // instantiated generic parameter is concretely typed
 		"storedInField":        "DeliverSubject,c", // not bound to an identifier: whole function (h.c counts)
 		"pkgLevel":             "-",                // no enclosing function
 	}

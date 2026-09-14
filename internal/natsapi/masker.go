@@ -25,9 +25,11 @@ import (
 //
 // A literal that is a direct call argument or return value is a temporary:
 // nothing is masked. A literal bound to a variable is scanned forward,
-// statement by statement, until the variable is handed off — passed to a
-// call by value, returned, sent on a channel, or passed by pointer to a
-// nats.go method — and only fields assigned before that point are masked.
+// statement by statement, until the variable is handed off — passed by
+// value to a concretely typed parameter, returned, sent on a channel, or
+// passed by pointer to a nats.go method — and only fields assigned before
+// that point are masked. A by-value pass to an interface parameter (fmt,
+// log, slog, testing) is not a hand-off: such a callee cannot submit it.
 // If a pointer to the variable reaches any other call, the variable is a
 // method receiver, or it is captured by a closure before the hand-off, or
 // no hand-off is found in the block, every field assigned anywhere in the
@@ -204,6 +206,27 @@ func (m *Masker) classify(s ast.Stmt, obj types.Object) use {
 		fn := Callee(m.info, c)
 		return fn != nil && (IsPkg(fn, Core) || IsPkg(fn, JetStream))
 	}
+	// typedParam reports whether argument i of call c lands in a parameter
+	// whose type is not an interface: a callee that takes any (fmt.Println,
+	// log.Printf, slog, testing) cannot be submitting the config.
+	typedParam := func(c *ast.CallExpr, i int) bool {
+		sig, ok := m.info.TypeOf(c.Fun).Underlying().(*types.Signature)
+		if !ok {
+			return false
+		}
+		params := sig.Params()
+		var pt types.Type
+		switch {
+		case sig.Variadic() && i >= params.Len()-1:
+			pt = params.At(params.Len() - 1).Type().(*types.Slice).Elem()
+		case i < params.Len():
+			pt = params.At(i).Type()
+		default:
+			return false
+		}
+		_, isIface := pt.Underlying().(*types.Interface)
+		return !isIface
+	}
 	note := func(u use) {
 		if u > result {
 			result = u
@@ -223,7 +246,7 @@ func (m *Masker) classify(s ast.Stmt, obj types.Object) use {
 			if sel, ok := ast.Unparen(n.Fun).(*ast.SelectorExpr); ok && isVar(sel.X) {
 				note(escape)
 			}
-			for _, a := range n.Args {
+			for i, a := range n.Args {
 				switch {
 				case isAddr(a), isVar(a) && isPtr:
 					if natsCall(n) {
@@ -231,7 +254,7 @@ func (m *Masker) classify(s ast.Stmt, obj types.Object) use {
 					} else {
 						note(escape)
 					}
-				case isVar(a):
+				case isVar(a) && typedParam(n, i):
 					note(handoff)
 				}
 			}

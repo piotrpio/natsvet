@@ -42,7 +42,7 @@ The framework SHALL provide constant extraction for integer, duration and boolea
 - **THEN** every extractor reports not-constant
 
 ### Requirement: Config literals are checked as they leave the function
-The framework SHALL decide, for a config literal, which fields may have changed before the value leaves the enclosing function, so that config rules never report a field that a later statement may rewrite before submission. A direct call argument or return value SHALL have no masked fields. A literal bound to a variable SHALL mask the fields assigned before the first statement that hands the variable off (by-value call argument, return, channel send, or pointer argument to a nats.go method). A pointer escape to another call, a method call on the variable, a closure capture, or the absence of a hand-off in the block SHALL fall back to masking every field assigned anywhere in the function.
+The framework SHALL decide, for a config literal, which fields may have changed before the value leaves the enclosing function, so that config rules never report a field that a later statement may rewrite before submission. A direct call argument or return value SHALL have no masked fields. A literal bound to a variable SHALL mask the fields assigned before the first statement that hands the variable off (by-value argument to a concretely typed parameter, return, channel send, or pointer argument to a nats.go method); a by-value argument to an interface-typed parameter SHALL NOT count as a hand-off. A pointer escape to another call, a method call on the variable, a closure capture, or the absence of a hand-off in the block SHALL fall back to masking every field assigned anywhere in the function.
 
 #### Scenario: Inline literal
 - **WHEN** a config literal is a direct call argument
@@ -55,6 +55,10 @@ The framework SHALL decide, for a config literal, which fields may have changed 
 #### Scenario: Assignment before hand-off
 - **WHEN** `cfg := T{...}` is followed by `cfg.X = ...` (directly or inside a nested block) and then `use(cfg)`
 - **THEN** `X` is masked and other fields are not
+
+#### Scenario: Interface parameter is not a hand-off
+- **WHEN** `cfg := T{...}` is followed by `log.Printf("%v", cfg)`, then `cfg.X = ...`, then `use(cfg)`
+- **THEN** `X` is masked
 
 #### Scenario: Pointer escape
 - **WHEN** `cfg := T{...}` is followed by `helper(&cfg)` and later `cfg.X = ...`

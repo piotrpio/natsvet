@@ -138,8 +138,9 @@ natsvet/
   not copied from this document.
 - Config rules check what reaches the server. A literal passed directly to a call or
   returned is checked as written. A literal bound to a variable is checked as written
-  up to the first hand-off (by-value call argument, return, channel send, or pointer
-  argument to a nats.go method); fields assigned before that point are unknown. A
+  up to the first hand-off (by-value argument to a concretely typed parameter, return,
+  channel send, or pointer argument to a nats.go method; a logger's `...any` is not a
+  hand-off); fields assigned before that point are unknown. A
   pointer escaping to another call, a method call on the variable, a closure capture,
   or no hand-off at all falls back to treating every field assigned anywhere in the
   function as unknown. Mutation inside another function is a known, accepted hole.
