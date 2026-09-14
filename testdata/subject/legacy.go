@@ -25,4 +25,9 @@ func legacy(js nats.JetStreamContext) {
 	_, _ = js.SubscribeSync("", nats.BindStream("ORDERS"))
 	_, _ = js.PullSubscribe("", "d", nats.Bind("ORDERS", "d"))
 	_, _ = js.Publish("", nil) // want `subject "" is invalid: empty subject`
+
+	_, _ = js.PullSubscribe(".>", "d", nats.Bind("ORDERS", "d"), nats.ManualAck())
+	_, _ = js.Subscribe(".>", handler, nats.Bind("ORDERS", "d"))
+	_, _ = js.PullSubscribe(".>", "d", nats.BindStream("ORDERS")) // want `subject ".>" is invalid: empty token`
+	_, _ = js.PullSubscribe(".>", "d")                            // want `subject ".>" is invalid: empty token`
 }

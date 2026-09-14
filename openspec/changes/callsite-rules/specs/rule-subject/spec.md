@@ -5,7 +5,7 @@ subject reports constant subjects and queue group names that nats.go or the serv
 ## ADDED Requirements
 
 ### Requirement: Subject positions
-The rule SHALL examine constant string expressions in these positions: the subject (and reply) arguments of `nats.Conn` methods `Publish`, `PublishRequest`, `Request`, `RequestWithContext`, `Subscribe`, `SubscribeSync`, `QueueSubscribe`, `QueueSubscribeSync`, `ChanSubscribe`, `ChanQueueSubscribe`, `QueueSubscribeSyncWithChan`; the argument of `nats.NewMsg`; the `Subject` and `Reply` fields of a `nats.Msg` literal; the subject argument of `jetstream.Publisher` `Publish` and `PublishAsync` and of legacy `nats.JetStream` `Publish`, `PublishAsync`, `Subscribe`, `SubscribeSync`, `QueueSubscribe`, `QueueSubscribeSync`, `ChanSubscribe`, `ChanQueueSubscribe`, `PullSubscribe`; the `Subject` field of `micro.EndpointConfig` and the argument of `micro.WithEndpointSubject`. Non-constant expressions SHALL be skipped. Category `subject`. No fix.
+The rule SHALL examine constant string expressions in these positions: the subject (and reply) arguments of `nats.Conn` methods `Publish`, `PublishRequest`, `Request`, `RequestWithContext`, `Subscribe`, `SubscribeSync`, `QueueSubscribe`, `QueueSubscribeSync`, `ChanSubscribe`, `ChanQueueSubscribe`, `QueueSubscribeSyncWithChan`; the argument of `nats.NewMsg`; the `Subject` and `Reply` fields of a `nats.Msg` literal; the subject argument of `jetstream.Publisher` `Publish` and `PublishAsync` and of legacy `nats.JetStream` `Publish`, `PublishAsync`, `Subscribe`, `SubscribeSync`, `QueueSubscribe`, `QueueSubscribeSync`, `ChanSubscribe`, `ChanQueueSubscribe`, `PullSubscribe`; the `Subject` field of `micro.EndpointConfig` and the argument of `micro.WithEndpointSubject`. Non-constant expressions SHALL be skipped, and so SHALL the subject of a legacy `nats.JetStream` subscribe call that passes `nats.Bind(stream, consumer)` among its arguments. Category `subject`. No fix.
 
 #### Scenario: Concatenated constants
 - **WHEN** code declares `const prefix = "orders"` and calls `nc.Publish(prefix+"..new", nil)`
@@ -37,6 +37,14 @@ Mirrors nats.go `validateSubject`/`badSubject` and nats-server `IsValidSubject`.
 #### Scenario: Empty subject on a legacy JetStream subscribe
 - **WHEN** code calls `js.SubscribeSync("", nats.BindStream("ORDERS"))` or `js.PullSubscribe("", "d", nats.Bind("ORDERS", "d"))` on a legacy `nats.JetStreamContext`
 - **THEN** the rule reports nothing: nats.go accepts an empty subject when a stream is bound (`js.go`: "subject required" only without a stream), and the binding option is often behind a variadic `opts...`
+
+#### Scenario: Any subject with a bound consumer
+- **WHEN** code calls `js.PullSubscribe(".>", "d", nats.Bind("ORDERS", "d"))` or `js.Subscribe(".>", handler, nats.Bind("ORDERS", "d"))`
+- **THEN** the rule reports nothing: with `Bind(stream, consumer)` the subject is never used as a subscription subject, only compared to the consumer's `FilterSubject` (`js.go` `processConsInfo`), which is not decidable statically
+
+#### Scenario: Invalid subject with only a bound stream
+- **WHEN** code calls `js.PullSubscribe(".>", "d", nats.BindStream("ORDERS"))` or `js.PullSubscribe(".>", "d")`
+- **THEN** the rule reports `subject ".>" is invalid: empty token`: the subject becomes the new consumer's `FilterSubject`, which the server validates
 
 #### Scenario: Reply subject
 - **WHEN** code calls `nc.PublishRequest("req", "reply..x", nil)`

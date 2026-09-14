@@ -19,6 +19,7 @@ package subject
 import (
 	"fmt"
 	"go/ast"
+	"go/types"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
@@ -60,10 +61,12 @@ type methodHook struct {
 	reply   int
 	queue   int
 	publish bool
-	// emptyOK marks the legacy JetStream subscribe methods, where an empty
-	// subject is valid when a stream is bound with Bind or BindStream
-	// (js.go: "subject required" only without a stream).
-	emptyOK bool
+	// legacySub marks the legacy JetStream subscribe methods. There an
+	// empty subject is valid when a stream is bound with BindStream or Bind
+	// (js.go: "subject required" only without a stream), and with
+	// Bind(stream, consumer) the subject is never used as a subscription
+	// subject at all, only compared to the consumer's FilterSubject.
+	legacySub bool
 }
 
 var methodHooks = func() []methodHook {
@@ -149,8 +152,11 @@ func run(pass *analysis.Pass) (any, error) {
 				if !natsapi.IsMethod(fn, h.pkg, h.recv, h.name) {
 					continue
 				}
+				if h.legacySub && boundToConsumer(info, n) {
+					return
+				}
 				if h.subj < len(n.Args) {
-					checkSubject(n.Args[h.subj], h.publish, h.emptyOK)
+					checkSubject(n.Args[h.subj], h.publish, h.legacySub)
 				}
 				if h.reply >= 0 && h.reply < len(n.Args) {
 					checkSubject(n.Args[h.reply], h.publish, false)
@@ -182,6 +188,17 @@ func run(pass *analysis.Pass) (any, error) {
 		}
 	})
 	return nil, nil
+}
+
+// boundToConsumer reports whether a legacy subscribe call passes
+// nats.Bind(stream, consumer) among its options.
+func boundToConsumer(info *types.Info, call *ast.CallExpr) bool {
+	for _, a := range call.Args {
+		if opt, ok := ast.Unparen(a).(*ast.CallExpr); ok && natsapi.IsFunc(natsapi.Callee(info, opt), natsapi.Core, "Bind") {
+			return true
+		}
+	}
+	return false
 }
 
 // subjectInvalid mirrors nats.go validateSubject (empty, whitespace) and
