@@ -1,0 +1,46 @@
+## Context
+
+Four config-side rules and the framework exist; `natsapi` has package/callee matching, constant extraction, subject validity, `CompositeFields`, `EnclosingFuncBody`, `AssignedFields` and the `Masker`. See proposal.md for motivation. The six rules here are call-site rules: each inspects a `CallExpr` (and, for `subject`/`duration`, struct literal fields) and, for two of them, the single definition of the receiver variable. Behavior was re-verified against nats.go v1.53.1 this session: `validateSubject` rejects only empty and whitespace; `subjectIsLiteral` is the server's wildcard test; `FlushWithContext` is the only context method that checks `Deadline()`; `validateNextMsgState` returns `ErrSyncSubRequired` for `mcb != nil` and `ErrTypeSubscription` for `jsi.pull`, and reads `s.mch` otherwise; `Header.Set`/`Add` are unguarded map writes while `NewMsg` allocates; `Drain` returns after `go nc.drainConnection()`; micro validates endpoint subjects with `^[^ >]*[>]?$` before subscribing through `nats.Conn`.
+
+## Goals / Non-Goals
+
+**Goals:**
+- Six rules with the same zero-FP posture as the config rules: constants and direct calls only, single-definition receivers only.
+- `duration` keyed on the `time.Duration` type so no list of nats.go APIs has to be maintained.
+- One reusable `SingleDefinition` for every rule that reasons about "the thing this variable was created as".
+
+**Non-Goals:**
+- Dataflow beyond one definition (no tracking through parameters, fields, or reassignment).
+- The `defer Drain` check and Tier 2 rules.
+
+## Decisions
+
+**`duration` discovery is type-driven.** For a `CallExpr` whose callee is a `*types.Func` declared in Core/JetStream/Micro, walk `Signature().Params()` (variadic-aware) and check each argument whose parameter type `IsDurationType` (named `Duration` in package `time`). For a `CompositeLit` whose type is a named struct declared in those packages (any name — `ConsumerConfig`, `Options`, `KeyValueConfig`, …), look each keyed field up with `StructField` and check values whose field type is `Duration`, and each element of a slice literal whose field type is `[]Duration`. Alternative: a hand-written table of the 26 functions and 24 fields — rejected; it would drift and the type test is exact.
+
+**"Untyped constant expression".** `go/types` records the converted type for untyped constants in context, so untypedness is decided on the AST: the expression is a `BasicLit`, an identifier or selector resolving to a `*types.Const` whose type is an untyped basic type, or `UnaryExpr`/`BinaryExpr`/`ParenExpr` over those. Anything else (a typed constant such as `time.Second`, a conversion, a call, a variable) disqualifies it. The value comes from `ConstInt`; the window is `0 < v < 1e6`. Below the window `0`/negative mean "default"/"none"; at or above it a raw nanosecond count is taken as deliberate (the design doc's threshold, unchanged).
+
+**`duration` message names the position.** A field name for literals; the function name for option constructors (`Timeout`, `FetchMaxWait`); the method name otherwise (`Request`, `NextMsg`). No unit suggestion beyond "such as time.Second or time.Millisecond": guessing the unit would be wrong half the time.
+
+**`subject` hooks are a table**, as in `kvconfig`: `{pkg, recv, method, argIdx, publish}` for methods, plus `nats.NewMsg` and `micro.WithEndpointSubject` as functions, plus field hooks `{TypeRef, field, publish}` for `nats.Msg` (`Subject`, `Reply`, publish) and `micro.EndpointConfig` (`Subject`, subscribe). Validity reasons are derived once (`subjectInvalid(s) (reason string, ok bool)`) in the order nats.go and the server check them: empty, whitespace, empty token, misplaced `>`; the reason text is ours, since nats.go returns the same `ErrBadSubject` for all of them. Wildcard-publish uses `SubjectIsLiteral`.
+
+**`ctxdeadline` is two tables and one predicate.** Hooks by `IsMethod`; the argument test is `Callee(arg).IsFunc("context", "Background"|"TODO")` on a direct `CallExpr`, nothing else. `Pkg` is a string type, so `natsapi.Pkg("context")` works without adding a constant for a non-nats package.
+
+**`SingleDefinition(info, body, id) (ast.Expr, bool)`.** The identifier's object must be a `*types.Var` declared inside `body` (parameters are declared in the `FuncType`, outside it; package-level variables are outside too). One walk over `body` (closures included) collects: `AssignStmt` and `ValueSpec` definitions of the object, with the right-hand expression resolved positionally or, for a multi-value call, as the call itself; `RangeStmt` key/value definitions (counted, no expression); and any `&id` (bail out). Exactly one definition with an expression → return it. Promoted to `natsapi` because `syncsub` and `nilheader` both need it and later rules (`handle`, `msgloop`) will too.
+
+**`syncsub` kinds are a table keyed by the definition's callee**: `(Core, Conn, Subscribe|QueueSubscribe)` and `(Core, JetStream, Subscribe|QueueSubscribe)` → callback; `(Core, Conn, ChanSubscribe|ChanQueueSubscribe|QueueSubscribeSyncWithChan)` and `(Core, JetStream, ChanSubscribe|ChanQueueSubscribe)` → channel; `(Core, JetStream, PullSubscribe)` → pull. `nats.JetStreamContext` embeds `JetStream`, so `IsMethod`'s declaring-interface match sees `js.Subscribe` as `JetStream.Subscribe`. The receiver of `NextMsg` must be a bare identifier; `s.sub.NextMsg(...)` is not examined.
+
+**`nilheader`** hooks `IsMethod(Core, Header, Set|Add)` where the call's receiver expression is `<id>.Header`; `SingleDefinition(id)` must be a `nats.Msg` literal (through `&`) per `CompositeFields` with no `Header` key; and no `AssignStmt` in the body writes `<id>.Header` (a rule-local walk: LHS selector named `Header` whose `X` resolves to the same object). `Get`/`Values`/`Del` are nil-safe and not hooked.
+
+**`drain` walks statement lists**, not calls: for every `BlockStmt`/`CaseClause`/`CommClause` list, find a statement whose call is `IsMethod(Core, Conn, Drain)` on a bare identifier — as an `ExprStmt`, the single-call RHS of an `AssignStmt`, or the `Init` of an `IfStmt` (`if err := nc.Drain(); err != nil`). From the following statement, allow exactly one `IfStmt` that contains no method call on that identifier, then require an `ExprStmt` calling `IsMethod(Core, Conn, Close)` on the same object. Report at the `Close` call. Alternative: report any `Close` after `Drain` anywhere later in the block — rejected; a wait in between is exactly the correct pattern and the rule must not flag it.
+
+**Testdata.** One package per rule under `testdata/<rule>/`, `jetstream`/`legacy` split where both APIs apply (`subject`, `syncsub`, `duration`), one file otherwise; every spec scenario is a `// want` line or an unannotated negative line.
+
+**Helpers new vs reused.** New in `natsapi`: `SingleDefinition`, `IsDurationType`, `StructField`. Promoted because each is used by at least two rules or is a general `go/types` question with its own table test. Reused: `IsPkg`, `Callee`, `IsMethod`, `IsFunc`, `ConstString`, `ConstInt`, `IsValidSubject`, `SubjectIsLiteral`, `CompositeFields`, `EnclosingFuncBody`. Not promoted: each rule's hook table and the `drain` statement-list walk.
+
+## Risks / Trade-offs
+
+- [`duration` on `nats.Msg`-style test fixtures or benchmark code that deliberately uses tiny raw durations] → corpus decides; a test writing `nc.Request("s", nil, 50)` would be a true positive anyway.
+- [`subject` on `nats.Msg{Subject: "foo.*"}` literals that simulate incoming messages in tests] → the wildcard-publish check applies to `Msg.Subject` because `PublishMsg` is the common use; if the corpus shows test fixtures dominate, restrict the field hook to literals that reach a publish call (the `Masker`'s hand-off machinery already provides that) — decided by data.
+- [`SingleDefinition` misses definitions via `for sub := range subs` or closures assigning the variable] → both are counted as definitions (range) or seen by the walk (closures), so they disable the rule rather than mislead it.
+- [`drain` false negatives when the error check calls a method on the connection (`nc.LastError()`)] → the intervening-`if` allowance is deliberately narrow; a miss is acceptable, a false positive is not.
+- [`ctxdeadline` on `RequestWithContext(context.Background(), ...)` in code that relies on no-responders] → the message says exactly when it blocks; if the corpus shows it is common and intentional, demote that half to opt-in and keep `FlushWithContext` default-on.
