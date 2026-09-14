@@ -32,8 +32,8 @@
 
 ## 7. Rule drain
 
-- [ ] 7.1 Write `testdata/drain/drain.go` with one `// want` line per scenario (adjacent, `if err := Drain()` form, `err := Drain()` + check form, wait between, different connections; deferred Close with `return nc.Drain()`, with trailing `nc.Drain()`, with a wait before returning, and in `main`/`TestXxx` (exempt)); verify the test fails before the analyzer exists
-- [ ] 7.2 Implement `analyzers/drain` as a statement-list walk with the single tolerated `if`, plus the per-function deferred-`Close` pass with the `main`/test exemption; verify the analysistest passes and register it in `Analyzers()`
+- [x] 7.1 Write `testdata/drain/drain.go` with one `// want` line per scenario (adjacent, `if err := Drain()` form, `err := Drain()` + check form, wait between, different connections; deferred Close with `return nc.Drain()`, with trailing `nc.Drain()`, with a wait before returning, and in `main`/`TestXxx` (exempt)); verify the test fails before the analyzer exists
+- [x] 7.2 Implement `analyzers/drain` as a statement-list walk with the single tolerated `if`, plus the per-function deferred-`Close` pass with the `main`/test exemption; verify the analysistest passes and register it in `Analyzers()`
 
 ## 8. Corpus and docs
 

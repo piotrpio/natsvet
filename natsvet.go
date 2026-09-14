@@ -22,6 +22,7 @@ import (
 
 	"github.com/piotrpio/natsvet/analyzers/consumerconfig"
 	"github.com/piotrpio/natsvet/analyzers/ctxdeadline"
+	"github.com/piotrpio/natsvet/analyzers/drain"
 	"github.com/piotrpio/natsvet/analyzers/duration"
 	"github.com/piotrpio/natsvet/analyzers/headerkey"
 	"github.com/piotrpio/natsvet/analyzers/kvconfig"
@@ -37,6 +38,7 @@ func Analyzers() []*analysis.Analyzer {
 	return []*analysis.Analyzer{
 		consumerconfig.Analyzer,
 		ctxdeadline.Analyzer,
+		drain.Analyzer,
 		duration.Analyzer,
 		headerkey.Analyzer,
 		kvconfig.Analyzer,
