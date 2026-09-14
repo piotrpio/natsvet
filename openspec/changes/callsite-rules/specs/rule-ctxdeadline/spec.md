@@ -37,3 +37,18 @@ The rule SHALL report a context argument that is a direct call to `context.Backg
 #### Scenario: jetstream methods are exempt
 - **WHEN** code calls `js.Publish(context.Background(), "s", nil)` or `consumer.Fetch` with a background context
 - **THEN** the rule reports nothing (the `jetstream` package applies its own default timeout)
+
+### Requirement: Legacy Fetch with a background context option
+Mirrors `Subscription.Fetch` and `FetchBatch` in nats.go `js.go`, which return `ErrNoDeadlineContext` when the `nats.Context` option carries `context.Background()` (a `context.TODO()` passes the check and blocks). The rule SHALL report a `Fetch` or `FetchBatch` call on `*nats.Subscription` whose arguments include a direct call `nats.Context(context.Background())` or `nats.Context(context.TODO())`, with `<Method> with nats.Context(context.Background()) returns ErrNoDeadlineContext; use nats.MaxWait or a context with a deadline` (naming `TODO` when that is what was passed).
+
+#### Scenario: Fetch with background
+- **WHEN** code calls `sub.Fetch(10, nats.Context(context.Background()))`
+- **THEN** the rule reports the `Fetch` message
+
+#### Scenario: FetchBatch with TODO
+- **WHEN** code calls `sub.FetchBatch(10, nats.Context(context.TODO()))`
+- **THEN** the rule reports the `FetchBatch` message naming `context.TODO()`
+
+#### Scenario: Subscribe with background
+- **WHEN** code calls `js.Subscribe("s", h, nats.Context(context.Background()))`
+- **THEN** the rule reports nothing (the option only carries cancellation there)

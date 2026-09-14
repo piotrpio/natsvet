@@ -4,31 +4,31 @@ The config rules cover what users *declare*; the remaining Tier 1 pitfalls are i
 
 ## What Changes
 
-- Rule `duration` (default-on): an untyped integer constant between 1 and 999999 passed where nats.go, `jetstream` or `micro` declares a `time.Duration` parameter or struct field is almost certainly a missing unit. Discovered from the callee's signature and the struct's field types, not from a list, so every present and future Duration-typed API is covered.
-- Rule `subject` (default-on): a constant subject argument or `Subject`/`Reply` field that nats.go rejects (`validateSubject`: empty, whitespace) or the server rejects for subscriptions (`IsValidSubject`: empty token, `>` not last), and a publish-side subject containing a wildcard token, which is delivered as a literal and matches nothing the author intended.
-- Rule `ctxdeadline` (default-on): `context.Background()` or `context.TODO()` passed directly to `FlushWithContext` (deterministic `ErrNoDeadlineContext`) or to `RequestWithContext`/`RequestMsgWithContext`/`NextMsgWithContext` (blocks forever when a responder exists but never replies).
+- Rule `duration` (default-on): a positive untyped integer constant passed, assigned or written where nats.go, `jetstream` or `micro` declares a `time.Duration` parameter or struct field is a missing unit at any magnitude. Discovered from the callee's signature and the struct's field types, not from a list, so every present and future Duration-typed API is covered; field assignments (`opts.Timeout = 5`) count as well as literals and arguments.
+- Rule `subject` (default-on): a constant subject argument or `Subject`/`Reply` field that nats.go rejects (`validateSubject`: empty, whitespace) or the server rejects for subscriptions (`IsValidSubject`: empty token, `>` not last); a publish-side subject containing a wildcard token, which is delivered as a literal and matches nothing the author intended; and a queue group name containing whitespace (`ErrBadQueueName`).
+- Rule `ctxdeadline` (default-on): `context.Background()` or `context.TODO()` passed directly to `FlushWithContext` (deterministic `ErrNoDeadlineContext`), to `RequestWithContext`/`RequestMsgWithContext`/`NextMsgWithContext` (blocks forever when a responder exists but never replies), or wrapped in `nats.Context(...)` to legacy `Fetch`/`FetchBatch` (`ErrNoDeadlineContext`).
 - Rule `syncsub` (default-on): `NextMsg`/`NextMsgWithContext` on a subscription whose single definition in the function is a callback subscribe (`ErrSyncSubRequired`), a channel subscribe (silently competes with the channel), or a legacy pull subscribe (`ErrTypeSubscription`).
-- Rule `nilheader` (default-on): `Header.Set`/`Add` through a variable whose single definition is a `nats.Msg` literal without a `Header` key and whose `Header` is never assigned — a nil-map write panic.
-- Rule `drain` (default-on): `x.Close()` as the statement after `x.Drain()` (allowing one intervening error check); `Drain` returns before draining completes, so the `Close` discards it.
+- Rule `nilheader` (default-on): `Header.Set`/`Add` or a direct `Header[key] =` write through a variable whose single definition is a `nats.Msg` literal without a `Header` key and whose `Header` is never assigned — a nil-map write panic.
+- Rule `drain` (default-on): `x.Close()` as the statement after `x.Drain()` (allowing one intervening error check), and `defer x.Close()` in a function whose last action is `x.Drain()`; `Drain` returns before draining completes, so the `Close` discards it. `main` and test functions are exempt from the deferred form.
 - New `internal/natsapi` helper `SingleDefinition` (the one assignment of a local variable in its function, or none), plus a `Duration` type test and a struct-field type lookup.
 - Corpus run with all six rules; new findings triaged; README rule table extended.
 
 ## Capabilities
 
 ### New Capabilities
-- `rule-duration`: the `duration` rule — what counts as an untyped constant, the value window, discovery of Duration-typed parameters and fields, negative cases.
-- `rule-subject`: the `subject` rule — hooks per package, the two client/server validity checks, the publish-side wildcard check.
-- `rule-ctxdeadline`: the `ctxdeadline` rule — the four hooks and their two distinct messages.
+- `rule-duration`: the `duration` rule — what counts as an untyped constant, discovery of Duration-typed parameters, fields and field assignments, negative cases.
+- `rule-subject`: the `subject` rule — hooks per package, the two client/server validity checks, the publish-side wildcard check, queue group names.
+- `rule-ctxdeadline`: the `ctxdeadline` rule — the four core hooks, the legacy `Fetch` option hook, and their messages.
 - `rule-syncsub`: the `syncsub` rule — the three subscription kinds, single-definition requirement, messages.
-- `rule-nilheader`: the `nilheader` rule — the literal shapes, the later-assignment escape, negative cases.
-- `rule-drain`: the `drain` rule — adjacency, the tolerated error check, negative cases.
+- `rule-nilheader`: the `nilheader` rule — the literal shapes, method and map-index writes, the later-assignment escape, negative cases.
+- `rule-drain`: the `drain` rule — adjacency, the tolerated error check, the deferred form and its exemptions, negative cases.
 
 ### Modified Capabilities
 - `analyzer-framework`: adds the single-definition helper contract (exactly one assignment of a local variable in the enclosing function, no address taken) that `syncsub` and `nilheader` rely on.
 
 ## Non-goals
 
-- The `defer nc.Drain()`-in-`main` check from Tier 2 (`docs/design.md` §3.2, open question 2). Not in this change.
+- The `defer nc.Drain()`-in-`main` and `Drain()`-then-exit checks from Tier 2 (`docs/design.md` §3.2, open question 2). The deferred-`Close` form in `drain` deliberately exempts `main` and tests to stay clear of that question.
 - Tracking subjects or contexts through variables: `ctx := context.Background(); nc.FlushWithContext(ctx)` and `subj := "a..b"; nc.Publish(subj, nil)` are not reported. Constants and direct calls only.
 - `duration` on user-defined Duration parameters or on `time.Sleep`; only nats.go, `jetstream` and `micro` declarations. `durationcheck` and `staticcheck` cover the generic cases they cover.
 - Subjects built by `fmt.Sprintf` or concatenation with non-constants; a concatenation of constants is a constant and is checked.

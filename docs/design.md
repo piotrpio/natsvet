@@ -372,10 +372,12 @@ Client-side validations in nats.go `jetstream/kv.go` that return `ErrInvalidBuck
   `jetstream.PullHeartbeat`, fields `AckWait`, `Heartbeat`, `InactiveThreshold`,
   `MaxRequestExpires`, `IdleHeartbeat`, `MaxAge`, `Duplicates`, `TTL`, elements of `BackOff`, and the
   `nats.Options` struct — without enumerating them.
-- **Detect**: the argument expression is an untyped integer constant (a `BasicLit`, or an
-  identifier resolving to an untyped constant, or an arithmetic expression of those with
-  no selector `time.X` anywhere in its AST) with value `0 < v < 1_000_000` (1ms).
-  `0` and negatives are excluded (they commonly mean "default"/"none").
+- **Detect**: the argument, field value or assigned value is an untyped integer constant
+  (a `BasicLit`, or an identifier resolving to an untyped constant, or an arithmetic
+  expression of those with no typed constant, conversion or call anywhere in its AST)
+  with value `v > 0`. `0` and negatives are excluded (they commonly mean
+  "default"/"none"). No upper bound: a millisecond-mindset `86400000` is as unit-less
+  as a `5`. Field assignments (`opts.Timeout = 5`) are covered as well as literals.
 - **Message**: `duration 5 is 5ns; use a time.Duration unit such as 5*time.Second`.
 - **Fix**: none — the unit is unknown.
 - **FP**: `500*time.Microsecond` contains a `time.` selector and is skipped.
@@ -472,7 +474,9 @@ docs say to use `ClosedHandler` to learn when it finishes.
 - **Hooks**: `nats.Conn.Drain`, `nats.Conn.Close`.
 - **Detect** (Tier 1 part): an expression statement `x.Drain()` immediately followed in
   the same block by `x.Close()` on the same identifier (ignoring an intervening
-  `if err != nil { return ... }` on Drain's error). `Close` aborts the in-progress drain.
+  `if err != nil { return ... }` on Drain's error); and `defer x.Close()` in a function
+  whose last action is `x.Drain()`, excluding `main` and test functions (there the
+  process exit dominates, see §3.2). `Close` aborts the in-progress drain.
 - **Message**: `Close immediately after Drain aborts the drain; wait for the
   ClosedHandler instead`.
 - **Fix**: none.

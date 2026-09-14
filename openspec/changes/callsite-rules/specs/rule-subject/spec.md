@@ -1,6 +1,6 @@
 ## Purpose
 
-subject reports constant subjects that nats.go or the server rejects, and publish subjects that contain wildcards. nats.go's validateSubject returns ErrBadSubject for an empty subject or one with whitespace, the server rejects a subscription with an empty token or a misplaced >, and a wildcard token in a publish subject is sent literally, so the message matches only subscriptions that spell out the same literal token.
+subject reports constant subjects and queue group names that nats.go or the server rejects, and publish subjects that contain wildcards. nats.go's validateSubject returns ErrBadSubject for an empty subject or one with whitespace, the server rejects a subscription with an empty token or a misplaced >, and a wildcard token in a publish subject is sent literally, so the message matches only subscriptions that spell out the same literal token.
 
 ## ADDED Requirements
 
@@ -64,3 +64,18 @@ The rule SHALL report a constant subject containing a `*` or `>` token (nats-ser
 #### Scenario: Literal token that only looks like a wildcard
 - **WHEN** code calls `nc.Publish("foo*bar", nil)` or `nc.Publish("a.b>", nil)`
 - **THEN** the rule reports nothing (not a wildcard token)
+
+### Requirement: Queue group names have no whitespace
+Mirrors nats.go `badQueue` (`ErrBadQueueName`) and micro's endpoint validation. The rule SHALL report a constant queue group argument of `QueueSubscribe`, `QueueSubscribeSync`, `ChanQueueSubscribe` and `QueueSubscribeSyncWithChan` on `nats.Conn`, of `QueueSubscribe`, `QueueSubscribeSync` and `ChanQueueSubscribe` on legacy `nats.JetStream`, and a constant `QueueGroup` field of `micro.EndpointConfig`, that contains whitespace, with `queue group "<q>" contains whitespace (ErrBadQueueName)`.
+
+#### Scenario: Queue with a space
+- **WHEN** code calls `nc.QueueSubscribe("orders", "order workers", h)`
+- **THEN** the rule reports `queue group "order workers" contains whitespace (ErrBadQueueName)` at the queue argument
+
+#### Scenario: Micro queue group
+- **WHEN** code writes `micro.EndpointConfig{Subject: "svc.echo", QueueGroup: "q 1"}`
+- **THEN** the rule reports the message
+
+#### Scenario: Valid and empty queue names
+- **WHEN** code calls `nc.QueueSubscribe("orders", "workers", h)` or `js.QueueSubscribe("orders", "", h)`
+- **THEN** the rule reports nothing
