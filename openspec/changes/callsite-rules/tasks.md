@@ -27,8 +27,8 @@
 
 ## 6. Rule nilheader
 
-- [ ] 6.1 Write `testdata/nilheader/nilheader.go` with one `// want` line per scenario (pointer and value literal with Set/Add, `m.Header[k] = v` assignment, index read and delete, NewMsg, literal with Header, Header assigned later, nil-safe methods, parameter, reassigned); verify the test fails before the analyzer exists
-- [ ] 6.2 Implement `analyzers/nilheader` on `SingleDefinition` and `CompositeFields`, hooking `Set`/`Add` calls and index assignments; verify the analysistest passes and register it in `Analyzers()`
+- [x] 6.1 Write `testdata/nilheader/nilheader.go` with one `// want` line per scenario (pointer and value literal with Set/Add, `m.Header[k] = v` assignment, index read and delete, NewMsg, literal with Header, Header assigned later, nil-safe methods, parameter, reassigned); verify the test fails before the analyzer exists
+- [x] 6.2 Implement `analyzers/nilheader` on `SingleDefinition` and `CompositeFields`, hooking `Set`/`Add` calls and index assignments; verify the analysistest passes and register it in `Analyzers()`
 
 ## 7. Rule drain
 
