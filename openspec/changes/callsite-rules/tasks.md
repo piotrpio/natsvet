@@ -1,7 +1,7 @@
 ## 1. Shared helpers
 
-- [ ] 1.1 Add `IsDurationType` and `StructField` to `internal/natsapi`; verify a table test covers `time.Duration`, a named type with `time.Duration` underlying (not a match), `int64`, and field lookup on a struct with and without the field
-- [ ] 1.2 Add `SingleDefinition` to `internal/natsapi`; verify a `go/types`-driven table test covers `:=` single value, `:=` multi-value call, `var x = ...`, `=` reassignment (twice → none), range variable (none), parameter (none), package-level (none), address taken (none), and a definition inside a closure (counted)
+- [x] 1.1 Add `IsDurationType` and `StructField` to `internal/natsapi`; verify a table test covers `time.Duration`, a named type with `time.Duration` underlying (not a match), `int64`, and field lookup on a struct with and without the field
+- [x] 1.2 Add `SingleDefinition` to `internal/natsapi`; verify a `go/types`-driven table test covers `:=` single value, `:=` multi-value call, `var x = ...`, `=` reassignment (twice → none), range variable (none), parameter (none), package-level (none), address taken (none), and a definition inside a closure (counted)
 
 ## 2. Rule duration
 
