@@ -28,6 +28,7 @@ import (
 	"github.com/piotrpio/natsvet/analyzers/legacyjs"
 	"github.com/piotrpio/natsvet/analyzers/streamconfig"
 	"github.com/piotrpio/natsvet/analyzers/subject"
+	"github.com/piotrpio/natsvet/analyzers/syncsub"
 )
 
 // Analyzers returns the default-on rules.
@@ -40,6 +41,7 @@ func Analyzers() []*analysis.Analyzer {
 		kvconfig.Analyzer,
 		streamconfig.Analyzer,
 		subject.Analyzer,
+		syncsub.Analyzer,
 	}
 }
 

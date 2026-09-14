@@ -22,8 +22,8 @@
 
 ## 5. Rule syncsub
 
-- [ ] 5.1 Write `testdata/syncsub/{core,legacy}.go` with one `// want` line per scenario (callback, queue callback via JetStream, sync, channel kinds, pull, reassigned, parameter); verify the test fails before the analyzer exists
-- [ ] 5.2 Implement `analyzers/syncsub` on `SingleDefinition` with the kinds table; verify the analysistest passes and register it in `Analyzers()`
+- [x] 5.1 Write `testdata/syncsub/{core,legacy}.go` with one `// want` line per scenario (callback, queue callback via JetStream, sync, channel kinds, pull, reassigned, parameter); verify the test fails before the analyzer exists
+- [x] 5.2 Implement `analyzers/syncsub` on `SingleDefinition` with the kinds table; verify the analysistest passes and register it in `Analyzers()`
 
 ## 6. Rule nilheader
 
