@@ -26,6 +26,7 @@ import (
 	"github.com/piotrpio/natsvet/analyzers/kvconfig"
 	"github.com/piotrpio/natsvet/analyzers/legacyjs"
 	"github.com/piotrpio/natsvet/analyzers/streamconfig"
+	"github.com/piotrpio/natsvet/analyzers/subject"
 )
 
 // Analyzers returns the default-on rules.
@@ -36,6 +37,7 @@ func Analyzers() []*analysis.Analyzer {
 		headerkey.Analyzer,
 		kvconfig.Analyzer,
 		streamconfig.Analyzer,
+		subject.Analyzer,
 	}
 }
 

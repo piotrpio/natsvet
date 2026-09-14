@@ -11,9 +11,9 @@
 
 ## 3. Rule subject
 
-- [ ] 3.1 Write `testdata/subject/{core,jetstream,legacy,micro}.go` with one `// want` line per scenario in `rule-subject/spec.md` (each invalidity reason, reply argument, NewMsg, Msg literal fields, micro endpoint, wildcard publish vs subscribe, look-alike tokens, concatenated constants, non-constant, queue group with whitespace on core, legacy and micro, valid and empty queue names); verify the test fails before the analyzer exists
-- [ ] 3.2 Implement `analyzers/subject` with the hook table (subject and queue indexes), `subjectInvalid` reasons in nats.go/server order, the publish-literal check and the queue whitespace check; verify the analysistest passes
-- [ ] 3.3 Register `subject` in `Analyzers()`; verify the binary prints the expected diagnostics on `testdata/subject`
+- [x] 3.1 Write `testdata/subject/{core,jetstream,legacy,micro}.go` with one `// want` line per scenario in `rule-subject/spec.md` (each invalidity reason, reply argument, NewMsg, Msg literal fields, micro endpoint, wildcard publish vs subscribe, look-alike tokens, concatenated constants, non-constant, queue group with whitespace on core, legacy and micro, valid and empty queue names); verify the test fails before the analyzer exists
+- [x] 3.2 Implement `analyzers/subject` with the hook table (subject and queue indexes), `subjectInvalid` reasons in nats.go/server order, the publish-literal check and the queue whitespace check; verify the analysistest passes
+- [x] 3.3 Register `subject` in `Analyzers()`; verify the binary prints the expected diagnostics on `testdata/subject`
 
 ## 4. Rule ctxdeadline
 
