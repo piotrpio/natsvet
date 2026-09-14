@@ -5,7 +5,7 @@ duration reports an untyped integer constant passed where nats.go, jetstream or 
 ## ADDED Requirements
 
 ### Requirement: Untyped constants in Duration positions are reported
-The rule SHALL report an expression whose value is an integer constant `v > 0` and whose expression contains no typed constant, conversion or call — a literal, an identifier resolving to an untyped constant, or arithmetic over those — when it is passed as an argument whose parameter type is `time.Duration` to a function or method declared in `github.com/nats-io/nats.go`, its `jetstream` or `micro` package, or assigned to a `time.Duration` field (or element of a `[]time.Duration` field) in a composite literal of a struct type declared in one of those packages. The message SHALL be `duration <v> for <name> is <d>; multiply by a time unit such as time.Second or time.Millisecond`, where `<name>` is the parameter's field or option name when known (the field name for a literal, the function name for an option constructor like `nats.Timeout`, the method name otherwise) and `<d>` is Go's duration formatting of `<v>` nanoseconds. Category `duration`. No fix.
+The rule SHALL report an expression whose value is an integer constant `v > 0` and whose expression contains no typed constant, conversion or call — a literal, an identifier resolving to an untyped constant, or arithmetic over those — when it is passed as an argument whose parameter type is `time.Duration` to a function or method declared in `github.com/nats-io/nats.go`, its `jetstream` or `micro` package, or assigned to a `time.Duration` field (or element of a `[]time.Duration` field) in a composite literal of a struct type declared in one of those packages, or converted to a nats.go type declared as `time.Duration` (`nats.MaxWait`, `nats.AckWait`, `jetstream.PullExpiry`, `jetstream.PullHeartbeat`, ...). The message SHALL be `duration <v> for <name> is <d>; multiply by a time unit such as time.Second or time.Millisecond`, where `<name>` is the parameter's field or option name when known (the field name for a literal, the function name for an option constructor like `nats.Timeout`, the method name otherwise) and `<d>` is Go's duration formatting of `<v>` nanoseconds. Category `duration`. No fix.
 
 #### Scenario: Request timeout
 - **WHEN** code calls `nc.Request("s", nil, 5)`
@@ -14,6 +14,10 @@ The rule SHALL report an expression whose value is an integer constant `v > 0` a
 #### Scenario: Option constructor
 - **WHEN** code calls `nats.Connect(url, nats.Timeout(10))`
 - **THEN** the rule reports the argument to `nats.Timeout`
+
+#### Scenario: Conversion to a Duration option type
+- **WHEN** code calls `sub.Fetch(1, nats.MaxWait(500))` or `c.Fetch(1, jetstream.PullExpiry(5))`
+- **THEN** the rule reports `duration 500 for MaxWait is 500ns; ...` and `duration 5 for PullExpiry is 5ns; ...`
 
 #### Scenario: Config field
 - **WHEN** code writes `jetstream.ConsumerConfig{AckWait: 30}`
@@ -45,7 +49,7 @@ The rule SHALL report an expression whose value is an integer constant `v > 0` a
 
 #### Scenario: Millisecond-mindset value
 - **WHEN** code writes `MaxAge: 86400000`
-- **THEN** the rule reports `duration 86400000 for MaxAge is 1m26.4s; ...` (no upper bound: an untyped constant is unit-less at any magnitude)
+- **THEN** the rule reports `duration 86400000 for MaxAge is 86.4ms; ...` (no upper bound: an untyped constant is unit-less at any magnitude)
 
 #### Scenario: Explicit conversion
 - **WHEN** code calls `nc.Request("s", nil, time.Duration(n))`

@@ -38,8 +38,9 @@ func TestTablesUpToDate(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, want := range map[string][]byte{
-		tablegen.HeadersFile: gen.Headers,
-		tablegen.LegacyFile:  gen.Legacy,
+		tablegen.HeadersFile:   gen.Headers,
+		tablegen.LegacyFile:    gen.Legacy,
+		tablegen.DurationsFile: gen.Durations,
 	} {
 		got, err := os.ReadFile(filepath.Join(".", name))
 		if err != nil {

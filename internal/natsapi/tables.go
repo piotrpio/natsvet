@@ -71,3 +71,23 @@ func LegacySymbol(obj types.Object) (string, bool) {
 	}
 	return "nats." + key, true
 }
+
+// IsDurationAlias reports whether obj is an exported nats.go type declared
+// as time.Duration (nats.MaxWait, jetstream.PullExpiry, ...). go/types
+// records only the int64 underlying type for such declarations, so the
+// answer comes from the generated table.
+func IsDurationAlias(obj types.Object) bool {
+	tn, ok := obj.(*types.TypeName)
+	if !ok || tn.Pkg() == nil {
+		return false
+	}
+	for _, p := range []struct {
+		pkg  Pkg
+		name string
+	}{{JetStream, "jetstream"}, {Core, "nats"}, {Micro, "micro"}} {
+		if IsPkg(tn, p.pkg) {
+			return durationTypes[p.name+"."+tn.Name()]
+		}
+	}
+	return false
+}

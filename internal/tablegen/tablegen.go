@@ -38,8 +38,9 @@ const natsModule = "github.com/nats-io/nats.go"
 
 // File names of the generated tables inside internal/natsapi.
 const (
-	HeadersFile = "headers_table.go"
-	LegacyFile  = "legacy_table.go"
+	HeadersFile   = "headers_table.go"
+	LegacyFile    = "legacy_table.go"
+	DurationsFile = "durations_table.go"
 )
 
 // headerPkgs lists the packages scanned for header constants in the order
@@ -68,14 +69,18 @@ type Tables struct {
 	Headers map[string][]HeaderConst
 	// Legacy holds "Type", "Func" and "Type.Method" keys of the legacy API.
 	Legacy map[string]bool
+	// Durations holds "pkg.Type" for every exported type declared as
+	// time.Duration; go/types only keeps the int64 underlying type.
+	Durations map[string]bool
 	// Version is the nats.go module version the tables were derived from.
 	Version string
 }
 
-// Generated holds the two rendered Go source files.
+// Generated holds the rendered Go source files.
 type Generated struct {
-	Headers []byte
-	Legacy  []byte
+	Headers   []byte
+	Legacy    []byte
+	Durations []byte
 }
 
 // Available reports whether the pinned nats.go can be loaded from dir's
@@ -116,7 +121,7 @@ func Collect(dir string) (*Tables, error) {
 	for _, p := range pkgs {
 		byPath[p.PkgPath] = p
 	}
-	t := &Tables{Headers: make(map[string][]HeaderConst), Legacy: make(map[string]bool)}
+	t := &Tables{Headers: make(map[string][]HeaderConst), Legacy: make(map[string]bool), Durations: make(map[string]bool)}
 	for _, hp := range headerPkgs {
 		p, ok := byPath[hp.path]
 		if !ok {
@@ -126,6 +131,7 @@ func Collect(dir string) (*Tables, error) {
 			t.Version = p.Module.Version
 		}
 		collectHeaders(t, p, hp.name)
+		collectDurations(t, p, hp.name)
 	}
 	collectLegacy(t, byPath[natsModule])
 	return t, nil
@@ -182,6 +188,28 @@ func collectLegacy(t *Tables, p *packages.Package) {
 	}
 }
 
+// collectDurations records exported types declared as time.Duration.
+func collectDurations(t *Tables, p *packages.Package, pkgName string) {
+	for _, f := range p.Syntax {
+		for _, d := range f.Decls {
+			gd, ok := d.(*ast.GenDecl)
+			if !ok || gd.Tok != token.TYPE {
+				continue
+			}
+			for _, s := range gd.Specs {
+				ts := s.(*ast.TypeSpec)
+				sel, ok := ts.Type.(*ast.SelectorExpr)
+				if !ok || !ts.Name.IsExported() {
+					continue
+				}
+				if x, ok := sel.X.(*ast.Ident); ok && x.Name == "time" && sel.Sel.Name == "Duration" {
+					t.Durations[pkgName+"."+ts.Name.Name] = true
+				}
+			}
+		}
+	}
+}
+
 // collectInterfaceMethods records the methods an interface declares itself;
 // methods of embedded interfaces are recorded under the embedded interface,
 // which is also the receiver go/types reports for them.
@@ -221,7 +249,11 @@ func (t *Tables) Generate() (*Generated, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Generated{Headers: h, Legacy: l}, nil
+	d, err := t.renderDurations()
+	if err != nil {
+		return nil, err
+	}
+	return &Generated{Headers: h, Legacy: l, Durations: d}, nil
 }
 
 const licenseHeader = `// Copyright 2026 Synadia Communications Inc.
@@ -288,6 +320,24 @@ func (t *Tables) renderLegacy() ([]byte, error) {
 	b.WriteString("var legacySymbols = map[string]bool{\n")
 	keys := make([]string, 0, len(t.Legacy))
 	for k := range t.Legacy {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		fmt.Fprintf(&b, "\t%q: true,\n", k)
+	}
+	b.WriteString("}\n")
+	return format.Source(b.Bytes())
+}
+
+func (t *Tables) renderDurations() ([]byte, error) {
+	var b bytes.Buffer
+	t.preamble(&b)
+	b.WriteString("// durationTypes holds every exported nats.go type declared as time.Duration,\n")
+	b.WriteString("// keyed by package name and type name.\n")
+	b.WriteString("var durationTypes = map[string]bool{\n")
+	keys := make([]string, 0, len(t.Durations))
+	for k := range t.Durations {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)

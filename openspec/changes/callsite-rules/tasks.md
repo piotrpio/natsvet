@@ -5,9 +5,9 @@
 
 ## 2. Rule duration
 
-- [ ] 2.1 Write `testdata/duration/{jetstream,legacy,micro}.go` with one `// want` line per scenario in `rule-duration/spec.md` (Request, Timeout option, AckWait field, MaxAge legacy, NextMsg, BackOff elements, named constant, arithmetic, typed unit, zero/negative, millisecond-mindset value, conversion, time.Sleep, int parameter, `opts.Timeout = 5` and `cfg.AckWait = 30 * time.Second` assignments); verify the test fails before the analyzer exists
-- [ ] 2.2 Implement `analyzers/duration` with type-driven parameter, field and field-assignment discovery and the untyped-constant AST test; verify the analysistest passes
-- [ ] 2.3 Register `duration` in `Analyzers()`; verify `bin/natsvet ./duration/` from `testdata` prints the expected diagnostics
+- [x] 2.1 Write `testdata/duration/{jetstream,legacy}.go` (micro exposes no Duration inputs) with one `// want` line per scenario in `rule-duration/spec.md` (Request, Timeout option, AckWait field, MaxAge legacy, NextMsg, BackOff elements, named constant, arithmetic, typed unit, zero/negative, millisecond-mindset value, conversion, time.Sleep, int parameter, `opts.Timeout = 5` and `cfg.AckWait = 30 * time.Second` assignments); verify the test fails before the analyzer exists
+- [x] 2.2 Implement `analyzers/duration` with type-driven parameter, field and field-assignment discovery and the untyped-constant AST test; verify the analysistest passes
+- [x] 2.3 Register `duration` in `Analyzers()`; verify `bin/natsvet ./duration/` from `testdata` prints the expected diagnostics
 
 ## 3. Rule subject
 

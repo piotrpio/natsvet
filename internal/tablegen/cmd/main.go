@@ -48,8 +48,9 @@ func run(testdata, out string) error {
 		return err
 	}
 	for name, src := range map[string][]byte{
-		tablegen.HeadersFile: gen.Headers,
-		tablegen.LegacyFile:  gen.Legacy,
+		tablegen.HeadersFile:   gen.Headers,
+		tablegen.LegacyFile:    gen.Legacy,
+		tablegen.DurationsFile: gen.Durations,
 	} {
 		if err := os.WriteFile(filepath.Join(out, name), src, 0o644); err != nil {
 			return err

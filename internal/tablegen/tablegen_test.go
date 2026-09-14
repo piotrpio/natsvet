@@ -95,6 +95,20 @@ func TestCollectLegacy(t *testing.T) {
 	}
 }
 
+func TestCollectDurations(t *testing.T) {
+	tables := load(t)
+	for _, s := range []string{"nats.MaxWait", "nats.AckWait", "jetstream.PullExpiry", "jetstream.PullHeartbeat"} {
+		if !tables.Durations[s] {
+			t.Errorf("duration table lacks %q", s)
+		}
+	}
+	for _, s := range []string{"nats.PullMaxWaiting", "jetstream.ConsumerConfig", "nats.nakDelay"} {
+		if tables.Durations[s] {
+			t.Errorf("duration table contains %q", s)
+		}
+	}
+}
+
 func TestGenerateIsDeterministic(t *testing.T) {
 	tables := load(t)
 	a, err := tables.Generate()
@@ -108,7 +122,7 @@ func TestGenerateIsDeterministic(t *testing.T) {
 	if string(a.Headers) != string(b.Headers) || string(a.Legacy) != string(b.Legacy) {
 		t.Error("two generations differ")
 	}
-	for _, src := range [][]byte{a.Headers, a.Legacy} {
+	for _, src := range [][]byte{a.Headers, a.Legacy, a.Durations} {
 		if !strings.HasPrefix(string(src), "// Copyright") {
 			t.Error("generated file lacks the license header")
 		}
