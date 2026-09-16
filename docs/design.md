@@ -675,21 +675,28 @@ is one reviewable unit and helpers are built once. Specs are one per rule (each 
 item a requirement, each test case a scenario, the spec text doubling as the rule `Doc`)
 plus `analyzer-framework` and `testing`.
 
-1. **`bootstrap`**: module, license, `cmd/natsvet`, `internal/natsapi` with only what
+Progress (2026-09-16): 1–3 and the release-readiness part of 4 are archived under
+`openspec/changes/archive/`; nothing is in flight. The next change to propose is
+`lifecycle-rules` (5); `golangci-plugin` (6) can run in parallel with it. The tag waits
+for the repository move. Read the archived change's `design.md` before extending a rule:
+that is where the corpus-driven corrections live.
+
+1. **`bootstrap`** (done): module, license, `cmd/natsvet`, `internal/natsapi` with only what
    the two rules below need, testdata module, CI, README skeleton, corpus script with
    the initial repo list. `headerkey` end-to-end (default-on, `SuggestedFix`, golden
    file) proves the fix path; `legacyjs` (opt-in) proves the `enable` flag path and is
    the migration inventory.
-2. **`config-rules`**: `consumerconfig`, `streamconfig`, `kvconfig` — share
+2. **`config-rules`** (done): `consumerconfig`, `streamconfig`, `kvconfig` — share
    `CompositeFields`, the subject helpers and the KV regexes. Corpus run and triage
    close the change.
-3. **`callsite-rules`**: `duration`, `subject`, `ctxdeadline`, `syncsub`, `nilheader`,
+3. **`callsite-rules`** (done): `duration`, `subject`, `ctxdeadline`, `syncsub`, `nilheader`,
    `drain` — share `Callee`/`IsMethod`/`SingleDefinition`. `duration` and `subject`
    first: they are the likeliest to fire on the corpus. Corpus run closes the change.
-4. **`corpus-gate-v0.1`**: full triage, `corpus.expected` committed, README rule table
-   with before/after snippets and "found in the wild" examples, v0.1 tag.
-5. **`lifecycle-rules`**: `handle`, `msgloop`, `pubasync`; defaults decided by the
-   corpus numbers.
+4. **`release-readiness`** (done) and the tag (waiting): full triage over nine corpus
+   sources, generated `docs/rules.md`, `-version`, README. The `v0.1.0` tag follows the
+   repository move.
+5. **`lifecycle-rules`** (next): `handle`, `msgloop`, `pubasync`; defaults decided by the
+   corpus numbers. Reuses `SingleDefinition`, `EnclosingFuncBody` and the `Masker`.
 6. **`golangci-plugin`**: module plugin config in the repo, then the upstream PR once
    the module path is final.
 7. Later, separate designs: migration rewrites (legacy → `jetstream`), orbit.go
