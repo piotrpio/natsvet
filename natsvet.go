@@ -15,6 +15,8 @@
 // github.com/nats-io/nats.go. Analyzers returns the rules that run by default;
 // OptIn returns the rules that must be enabled explicitly with their
 // -<rule>.enable flag.
+//go:generate go run ./internal/docgen/cmd -out docs/rules.md
+
 package natsvet
 
 import (

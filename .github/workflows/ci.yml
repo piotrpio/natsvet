@@ -32,10 +32,10 @@ jobs:
           go install github.com/client9/misspell/cmd/misspell@v0.3.4
       - name: Lint
         run: make lint
-      - name: Generated tables are current
+      - name: Generated tables and docs are current
         run: |
           make generate
-          git diff --exit-code -- internal/natsapi
+          git diff --exit-code -- internal/natsapi docs/rules.md
       - name: Test
         run: make test
 
