@@ -12,8 +12,8 @@
 ## 3. Documentation
 
 - [x] 3.0 Add `internal/docgen` rendering `docs/rules.md` from `Analyzers()`/`OptIn()` `Doc` strings with a `go:generate` directive in `natsvet.go` and `TestRulesDocUpToDate`; verify the generated file lists all eleven rules with default and fix state and that editing a `Doc` without regenerating fails the test
-- [ ] 3.1 Rewrite README: install via `@latest` with a note that the module path may move before the first tag, rule table linking to `docs/rules.md`, corpus section with the repository list and the guarantee; verify the rule table matches `Analyzers()`/`OptIn()`
-- [ ] 3.2 Update `docs/design.md`: status line (main release-ready, first tag after the repository move, move after dogfooding), §4.3 corpus list, §8 follow-ups (Bind-mismatch heuristic, `headerkey` near-miss, nested-literal config checks); verify `misspell -locale US` passes on the doc
+- [x] 3.1 Rewrite README: install via `@latest` with a note that the module path may move before the first tag, rule table linking to `docs/rules.md`, corpus section with the repository list and the guarantee; verify the rule table matches `Analyzers()`/`OptIn()`
+- [x] 3.2 Update `docs/design.md`: status line (main release-ready, first tag after the repository move, move after dogfooding), §4.3 corpus list, §8 follow-ups (Bind-mismatch heuristic, `headerkey` near-miss, nested-literal config checks); verify `misspell -locale US` passes on the doc
 
 ## 4. Release gate
 

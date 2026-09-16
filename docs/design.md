@@ -1,7 +1,11 @@
 # natsvet — a `go/analysis` linter for nats.go
 
 Status: living design. Work is planned and tracked as OpenSpec changes under `openspec/`;
-this document is the rationale they refer back to. Rule lists in §3 are derived from the
+this document is the rationale they refer back to. As of 2026-09-16 `main` is
+release-ready: every Tier 1 rule is implemented and specified, the corpus (§4.3) passes
+with every finding triaged, and `go install ...@latest` works. The first tag follows the
+repository move (§8, item 1), which follows internal dogfooding; a tag under the current
+personal path would make it sticky for `go install` users. Rule lists in §3 are derived from the
 nats.go / nats-server source at the commits named in §3 and are re-derived when a rule is
 implemented.
 
@@ -630,9 +634,12 @@ tagged `TP` (a real bug in that repo — README material and an upstream PR) or 
 (an accepted false positive with a one-line reason). Any line not in the file fails the
 job.
 
-Initial corpus: nats.go's own `examples/` and `test/`, `nats-io/natscli`,
-`nats-io/nack`, `synadia-io/nex`, and every per-module `test/` directory of
-`synadia-io/orbit.go`.
+Corpus: nats.go's own `examples/` and `test/`; nats-server's `server/` and `test/`
+(its tests build every invalid config the server rejects — the best oracle for the
+config rules); `nats-io/natscli`, `nats-io/nack`, `synadia-io/nex`; every per-module
+`test/` directory of `synadia-io/orbit.go`; and three third-party users,
+`synadia-io/connect`, `choria-io/go-choria` and `knative-extensions/eventing-natss`.
+The whole list lints in about 75 seconds cold.
 
 The script lands in the bootstrap change and runs after every rule group, not only
 before a tag: the per-rule finding/FP counts decide Tier 2 defaults (§3.2), can demote
@@ -718,3 +725,20 @@ plus `analyzer-framework` and `testing`.
    driver with a report, not `go fix`. Design when `legacyjs` numbers exist.
 7. Which orbit.go APIs warrant rules of their own (§1, item 3). Survey after the corpus
    run.
+8. Legacy `js.Subscribe*(subj, nats.Bind(stream, consumer))` with a non-empty constant
+   subject: the subject is never used as a subscription subject, only compared for
+   equality with the consumer's `FilterSubject` (`js.go` `processConsInfo`), so a
+   wildcard or unrelated constant fails with `ErrSubjectMismatch` whenever a filter is
+   set. eventing-natss ships `PullSubscribe(".>", ..., nats.Bind(...))`. A rule "pass
+   `""` with `Bind`" would catch it; `subject` deliberately skips these calls.
+9. `headerkey` near-miss: an unknown `Nats-*` key within a small edit distance of a
+   known header (`Nats-TTLSeconds` for `Nats-TTL`, seen in go-choria). The table lookup
+   is exact today; a Levenshtein threshold of 2-3 over the known set would flag it
+   without touching user headers that share only the prefix.
+10. Config rules inside nested literals: `Mirror`/`Sources` subject transforms,
+    `SubjectTransform` and `RePublish` (source validity, destination mapping via the
+    server's `ValidateMapping`, republish cycles). nats-server test cases to derive
+    from live in `server/jetstream_test.go` (overlapping transform sources, invalid
+    transform source `events.>.*`, bad `{{split(3,1)}}` destination, republish cycle).
+    `CompositeFields` already descends one level; the port of `ValidateMapping` is the
+    work.
