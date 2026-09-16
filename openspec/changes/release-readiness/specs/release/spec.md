@@ -26,9 +26,13 @@ A release tag `vX.Y.Z` SHALL be created only from a commit on which `make lint`,
 - **WHEN** a user runs `go install github.com/piotrpio/natsvet/cmd/natsvet@latest` and then `natsvet -version`
 - **THEN** the output contains the pseudo-version and commit of `main`, and `natsvet -h` lists exactly the rules in the current README
 
-### Requirement: The README documents every rule with an example
-The README SHALL contain, for every registered rule, its default state, whether it fixes, and a before/after Go snippet, and SHALL name the corpus repositories and state that a release passes the corpus with every finding triaged.
+### Requirement: Rule documentation is generated from the analyzers
+`docs/rules.md` SHALL be generated from the registered analyzers' `Doc` strings — for every rule its name, default state, whether it offers fixes, and the `Doc` text with its before/after snippet — and a test SHALL fail when the committed file differs from a fresh generation. The README SHALL keep a one-line-per-rule table that links to `docs/rules.md`, name the corpus repositories, and state that `main` passes the corpus with every finding triaged.
+
+#### Scenario: Doc string edited without regeneration
+- **WHEN** an analyzer's `Doc` changes and `docs/rules.md` is not regenerated
+- **THEN** the drift test fails naming the rule
 
 #### Scenario: Rule table matches the registry
-- **WHEN** the README rule table is compared with `Analyzers()` and `OptIn()`
-- **THEN** the sets of rule names are identical
+- **WHEN** the README rule table and `docs/rules.md` are compared with `Analyzers()` and `OptIn()`
+- **THEN** the sets of rule names are identical in both

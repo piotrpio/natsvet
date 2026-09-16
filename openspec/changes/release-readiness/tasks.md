@@ -6,12 +6,13 @@
 ## 2. Corpus
 
 - [ ] 2.1 Add nats-server (v2.14.7, `. ./server/... ./test/...`), go-choria, synadia-io/connect and eventing-natss with their pinned commits to `scripts/corpus.txt`; verify every commit resolves with `git ls-remote` and `make corpus` loads each entry without a package-load error line
-- [ ] 2.2 Triage every new finding into `scripts/corpus.expected` (`FP` with the test's purpose for nats-server; `TP` with an upstream reference or `FP` with reason for the others; fix a hook-table false positive in this change only if it is of the `Bind` kind, with a spec scenario); verify a second `make corpus` passes and record the job's wall time
+- [ ] 2.2 Triage every new finding into `scripts/corpus.expected` (`FP` with the test's purpose for nats-server; `TP` with what is wrong plus an issue draft in the summary, or `FP` with reason, for the others; fix a hook-table false positive in this change only if it is of the `Bind` kind, with a spec scenario); verify a second `make corpus` passes and record the job's wall time
 - [ ] 2.3 If the corpus run exceeds ten minutes, narrow go-choria and eventing-natss to the directories that import nats.go and note it in `corpus.txt`; verify the run stays under budget with identical findings
 
 ## 3. Documentation
 
-- [ ] 3.1 Rewrite README: install via `@latest` with a note that the module path may move before the first tag, rule table plus one before/after subsection per rule taken from each analyzer's `Doc`, corpus section with the repository list and the guarantee; verify the rule table matches `Analyzers()`/`OptIn()` and every rule has a subsection
+- [ ] 3.0 Add `internal/docgen` rendering `docs/rules.md` from `Analyzers()`/`OptIn()` `Doc` strings with a `go:generate` directive in `natsvet.go` and `TestRulesDocUpToDate`; verify the generated file lists all eleven rules with default and fix state and that editing a `Doc` without regenerating fails the test
+- [ ] 3.1 Rewrite README: install via `@latest` with a note that the module path may move before the first tag, rule table linking to `docs/rules.md`, corpus section with the repository list and the guarantee; verify the rule table matches `Analyzers()`/`OptIn()`
 - [ ] 3.2 Update `docs/design.md`: status line (main release-ready, first tag after the repository move, move after dogfooding), §4.3 corpus list, §8 follow-ups (Bind-mismatch heuristic, `headerkey` near-miss, nested-literal config checks); verify `misspell -locale US` passes on the doc
 
 ## 4. Release gate

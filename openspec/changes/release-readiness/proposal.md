@@ -7,7 +7,7 @@ Tier 1 is complete: ten default-on rules, `legacyjs`, 68 spec requirements, and 
 - Bump `golang.org/x/tools` to v0.49.0 (keeps the `go 1.25` directive; v0.50 would require Go 1.26 and drop a CI leg). This is the version that turns "internal error: package context without types" on a newer-Go project into a clear "requires newer Go" error.
 - Widen the corpus with four pinned repositories: `nats-io/nats-server` (`server/` and `test/` at v2.14.7 — the best correctness oracle, its tests build every invalid config the server rejects), `choria-io/go-choria` (the densest third-party nats.go user found), `synadia-io/connect` (new `jetstream` API usage), and `knative-extensions/eventing-natss` (the repository whose code exposed the `Bind` false positive). Triage every finding.
 - `natsvet -version` prints the module version and VCS revision from build info, so a bug report can name the build. `multichecker`'s `-V` is for the `go vet` cache and prints nothing useful to a person.
-- README: a rule section with a before/after snippet per rule, the corpus list and what passing it means, install instructions via `@latest`.
+- `docs/rules.md` generated from the analyzers' `Doc` strings (`go generate` + a drift test, like the nats.go tables), so the rule documentation users read is exactly what golangci-lint will show; README keeps the short table, links to it, adds the corpus list and what passing it means, and install instructions via `@latest`.
 - `docs/design.md` §8 gains the follow-ups the runs surfaced: the `Bind`+subject mismatch heuristic, unknown `Nats-*` keys near a known header (`Nats-TTLSeconds`), nested-literal checks for the config rules, and the `main`/test `Drain` question already there.
 - Record in `docs/design.md` that the first tag follows the repository move, and that the move follows internal dogfooding.
 
@@ -36,7 +36,7 @@ No rules are added or changed; all eleven keep their defaults (ten on, `legacyjs
 
 ## Shared helpers
 
-None added. Reused as is.
+None added to `internal/natsapi`. New `internal/docgen` (rule documentation from `Doc` strings) with its own drift test.
 
 ## Impact
 
