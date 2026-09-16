@@ -15,3 +15,10 @@ https://github.com/synadia-io/orbit.go.git 8b6323dea98cbbf960c0c465559830abc2cc8
 https://github.com/synadia-io/orbit.go.git 8b6323dea98cbbf960c0c465559830abc2cc8545 natsext/test
 https://github.com/synadia-io/orbit.go.git 8b6323dea98cbbf960c0c465559830abc2cc8545 natssysclient/test
 https://github.com/synadia-io/orbit.go.git 8b6323dea98cbbf960c0c465559830abc2cc8545 pcgroups/test
+# Release-readiness additions: the server's own tests as a correctness oracle,
+# the densest third-party user found, the new jetstream API, and the repository
+# whose Bind usage exposed a subject false positive.
+https://github.com/nats-io/nats-server.git 8d8b69a8c46a46a150eabb7f312607c4d9c58faf . ./server/... ./test/...
+https://github.com/synadia-io/connect.git 562f73a361b97e93dcd0ef537606de28c2285255
+https://github.com/knative-extensions/eventing-natss.git d7e9d9fb3d71b0075f0783ef38271709f6a966a3
+https://github.com/choria-io/go-choria.git 7bda4feb31fac99f14a0d3dba951c80d6b60f3d6

@@ -5,9 +5,9 @@
 
 ## 2. Corpus
 
-- [ ] 2.1 Add nats-server (v2.14.7, `. ./server/... ./test/...`), go-choria, synadia-io/connect and eventing-natss with their pinned commits to `scripts/corpus.txt`; verify every commit resolves with `git ls-remote` and `make corpus` loads each entry without a package-load error line
-- [ ] 2.2 Triage every new finding into `scripts/corpus.expected` (`FP` with the test's purpose for nats-server; `TP` with what is wrong plus an issue draft in the summary, or `FP` with reason, for the others; fix a hook-table false positive in this change only if it is of the `Bind` kind, with a spec scenario); verify a second `make corpus` passes and record the job's wall time
-- [ ] 2.3 If the corpus run exceeds ten minutes, narrow go-choria and eventing-natss to the directories that import nats.go and note it in `corpus.txt`; verify the run stays under budget with identical findings
+- [x] 2.1 Add nats-server (v2.14.7, `. ./server/... ./test/...`), go-choria, synadia-io/connect and eventing-natss with their pinned commits to `scripts/corpus.txt`; verify every commit resolves with `git ls-remote` and `make corpus` loads each entry without a package-load error line
+- [x] 2.2 Triage every new finding into `scripts/corpus.expected` (`FP` with the test's purpose for nats-server; `TP` with what is wrong plus an issue draft in the summary, or `FP` with reason, for the others; fix a hook-table false positive in this change only if it is of the `Bind` kind, with a spec scenario); verify a second `make corpus` passes and record the job's wall time
+- [x] 2.3 If the corpus run exceeds ten minutes, narrow go-choria and eventing-natss to the directories that import nats.go and note it in `corpus.txt`; verify the run stays under budget with identical findings (not needed: the cold run of the full widened list took 75s)
 
 ## 3. Documentation
 
