@@ -1,6 +1,6 @@
 ## 1. Toolchain
 
-- [ ] 1.1 Bump `golang.org/x/tools` to v0.49.0 (`go get` + `go mod tidy` from the module cache) and verify `make test` and `make lint` pass unchanged, including the table drift test
+- [x] 1.1 Bump `golang.org/x/tools` to v0.49.0 (`go get` + `go mod tidy` from the module cache) and verify `make test` and `make lint` pass unchanged, including the table drift test
 - [ ] 1.2 Add the `-version` pre-check to `cmd/natsvet/main.go` printing module version and VCS revision from build info; verify `go run ./cmd/natsvet -version` prints `(devel)` with the checkout revision, `-V=full` output is unchanged, and `-version` does not appear in analysis flags
 
 ## 2. Corpus
