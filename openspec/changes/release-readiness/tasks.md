@@ -11,11 +11,11 @@
 
 ## 3. Documentation
 
-- [ ] 3.1 Rewrite README: install pinned to `@v0.1.0`, rule table plus one before/after subsection per rule taken from each analyzer's `Doc`, corpus section with the repository list and the guarantee; verify the rule table matches `Analyzers()`/`OptIn()` and every rule has a subsection
-- [ ] 3.2 Update `docs/design.md`: status line with the tag, §4.3 corpus list, §8 follow-ups (Bind-mismatch heuristic, `headerkey` near-miss, nested-literal config checks); verify `misspell -locale US` passes on the doc
+- [ ] 3.1 Rewrite README: install via `@latest` with a note that the module path may move before the first tag, rule table plus one before/after subsection per rule taken from each analyzer's `Doc`, corpus section with the repository list and the guarantee; verify the rule table matches `Analyzers()`/`OptIn()` and every rule has a subsection
+- [ ] 3.2 Update `docs/design.md`: status line (main release-ready, first tag after the repository move, move after dogfooding), §4.3 corpus list, §8 follow-ups (Bind-mismatch heuristic, `headerkey` near-miss, nested-literal config checks); verify `misspell -locale US` passes on the doc
 
 ## 4. Release gate
 
 - [ ] 4.1 Run `gofmt -l .`, `go vet ./...`, `staticcheck ./...`, `misspell -locale US .`, `make lint`, `make test` and `make corpus` on the candidate commit; verify all pass with no output from gofmt and misspell
 - [ ] 4.2 Confirm CI is green on the pushed candidate commit for both Go versions; verify with `gh run view`
-- [ ] 4.3 Hand over the tag: `git tag -a v0.1.0 -m "natsvet v0.1.0"` and `git push origin v0.1.0` are run by the maintainer; verify afterwards with `go install github.com/piotrpio/natsvet/cmd/natsvet@v0.1.0 && natsvet -version` printing `v0.1.0`
+- [ ] 4.3 Verify the install path without a tag: `go install github.com/piotrpio/natsvet/cmd/natsvet@latest && natsvet -version` prints the pseudo-version of the pushed `main` and `natsvet -h` lists the eleven rules

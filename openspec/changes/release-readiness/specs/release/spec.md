@@ -1,6 +1,6 @@
 ## Purpose
 
-What a tagged natsvet release guarantees: the checks that must pass before a tag exists, what the binary says about itself, and what a user gets from go install at the tag.
+What a tagged natsvet release guarantees, once tags exist: the checks that must pass before a tag is created, what the binary says about itself, and what a user gets from go install at the tag. Until the first tag, the same gates apply to main.
 
 ## ADDED Requirements
 
@@ -18,9 +18,13 @@ A release tag `vX.Y.Z` SHALL be created only from a commit on which `make lint`,
 ### Requirement: Installing at a tag yields the tagged rules
 `go install github.com/piotrpio/natsvet/cmd/natsvet@vX.Y.Z` SHALL produce a binary whose `-version` output names `vX.Y.Z` and whose rule set is exactly the README rule table at that tag.
 
-#### Scenario: Install at v0.1.0
-- **WHEN** a user runs `go install github.com/piotrpio/natsvet/cmd/natsvet@v0.1.0` and then `natsvet -version`
-- **THEN** the output contains `v0.1.0`, and `natsvet -h` lists the eleven rules of the v0.1.0 README
+#### Scenario: Install at a tag
+- **WHEN** a user runs `go install github.com/piotrpio/natsvet/cmd/natsvet@vX.Y.Z` and then `natsvet -version`
+- **THEN** the output contains `vX.Y.Z`, and `natsvet -h` lists exactly the rules in the README at that tag
+
+#### Scenario: Install from main before any tag
+- **WHEN** a user runs `go install github.com/piotrpio/natsvet/cmd/natsvet@latest` and then `natsvet -version`
+- **THEN** the output contains the pseudo-version and commit of `main`, and `natsvet -h` lists exactly the rules in the current README
 
 ### Requirement: The README documents every rule with an example
 The README SHALL contain, for every registered rule, its default state, whether it fixes, and a before/after Go snippet, and SHALL name the corpus repositories and state that a release passes the corpus with every finding triaged.

@@ -19,8 +19,8 @@ A corpus script SHALL clone the repositories and commits listed in `scripts/corp
 - **WHEN** the corpus list is first committed
 - **THEN** it contains pinned commits of nats.go (`examples/` and `test/`), natscli, nack, nex, and every per-module `test/` directory of orbit.go
 
-#### Scenario: Release corpus
-- **WHEN** the corpus list is at or after the `v0.1.0` tag
+#### Scenario: Release-ready corpus
+- **WHEN** the corpus list is at or after the release-readiness change
 - **THEN** it additionally contains pinned commits of nats-server (`server/` and `test/`), go-choria, synadia-io/connect and eventing-natss, and every finding on them is triaged
 
 #### Scenario: Inventory rule counts
