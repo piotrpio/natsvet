@@ -17,6 +17,6 @@
 
 ## 4. Release gate
 
-- [ ] 4.1 Run `gofmt -l .`, `go vet ./...`, `staticcheck ./...`, `misspell -locale US .`, `make lint`, `make test` and `make corpus` on the candidate commit; verify all pass with no output from gofmt and misspell
+- [x] 4.1 Run `gofmt -l .`, `go vet ./...`, `staticcheck ./...`, `misspell -locale US .`, `make lint`, `make test` and `make corpus` on the candidate commit; verify all pass with no output from gofmt and misspell
 - [ ] 4.2 Confirm CI is green on the pushed candidate commit for both Go versions; verify with `gh run view`
 - [ ] 4.3 Verify the install path without a tag: `go install github.com/piotrpio/natsvet/cmd/natsvet@latest && natsvet -version` prints the pseudo-version of the pushed `main` and `natsvet -h` lists the eleven rules
