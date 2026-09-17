@@ -80,6 +80,13 @@ func IsMethod(fn *types.Func, pkg Pkg, recv, name string) bool {
 	return receiverName(r.Type()) == recv
 }
 
+// IsNamedType reports whether t is exactly the named type pkg.name (not a
+// pointer to it, not a type with the same name elsewhere).
+func IsNamedType(t types.Type, pkg Pkg, name string) bool {
+	n, ok := t.(*types.Named)
+	return ok && n.Obj().Name() == name && IsPkg(n.Obj(), pkg)
+}
+
 // IsFunc reports whether fn is the package-level function pkg.name.
 func IsFunc(fn *types.Func, pkg Pkg, name string) bool {
 	return fn != nil && fn.Name() == name && IsPkg(fn, pkg) && fn.Signature().Recv() == nil

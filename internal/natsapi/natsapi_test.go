@@ -233,3 +233,36 @@ func use() {
 		})
 	}
 }
+
+const namedTypeSrc = `package p
+
+type StopAfter int
+
+var (
+	a StopAfter
+	p *StopAfter
+	n = 10
+)
+`
+
+func TestIsNamedType(t *testing.T) {
+	pkg, _, _ := typecheck(t, string(JetStream), namedTypeSrc)
+	other, _, _ := typecheck(t, "example.com/other", namedTypeSrc)
+	lookup := func(p *types.Package, name string) types.Type { return p.Scope().Lookup(name).Type() }
+	tests := []struct {
+		name string
+		t    types.Type
+		want bool
+	}{
+		{"named", lookup(pkg, "a"), true},
+		{"pointer", lookup(pkg, "p"), false},
+		{"other package", lookup(other, "a"), false},
+		{"untyped constant", types.Typ[types.UntypedInt], false},
+		{"int variable", lookup(pkg, "n"), false},
+	}
+	for _, tt := range tests {
+		if got := IsNamedType(tt.t, JetStream, "StopAfter"); got != tt.want {
+			t.Errorf("%s: IsNamedType = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
