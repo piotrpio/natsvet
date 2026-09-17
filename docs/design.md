@@ -1,10 +1,10 @@
 # natsvet — a `go/analysis` linter for nats.go
 
 Status: living design. Work is planned and tracked as OpenSpec changes under `openspec/`;
-this document is the rationale they refer back to. As of 2026-09-16 `main` is
-release-ready: every Tier 1 rule is implemented and specified, the corpus (§4.3) passes
-with every finding triaged, and `go install ...@latest` works. The first tag follows the
-repository move (§8, item 1), which follows internal dogfooding; a tag under the current
+this document is the rationale they refer back to. As of 2026-09-17 `main` is
+release-ready: every Tier 1 and Tier 2 rule is implemented and specified, the corpus (§4.3)
+passes with every finding triaged, and `go install ...@latest` works. The first tag follows
+the repository move (§8, item 1), which follows internal dogfooding; a tag under the current
 personal path would make it sticky for `go install` users. Rule lists in §3 are derived from the
 nats.go / nats-server source at the commits named in §3 and are re-derived when a rule is
 implemented.
@@ -198,7 +198,13 @@ speculatively; the list below is the expected end state.
 - `EnclosingFunc(pass, node) (ast.Node, *ast.FuncType)` — nearest `FuncDecl`/`FuncLit`.
 - `SingleDefinition(pass, ident) (ast.Expr, bool)` — if the identifier's object is
   assigned exactly once in its enclosing function (`:=`, `=`, or `var x = `), return the
-  RHS expression; otherwise false. Used by `syncsub` and `handle`-style rules.
+  RHS expression; otherwise false. Used by `syncsub`, `nilheader` and `msgloop`.
+- `Discarded(stack) bool` — the call at the top of the inspector stack is an expression
+  statement or the single RHS of an assignment whose first LHS is `_`. `handle`, `pubasync`.
+- `PackageUses(info, pkg, recv, name) bool` — any file of the analyzed package uses the
+  function or method; the one package-scope question so far. `pubasync`.
+- `IsNamedType(t, pkg, name) bool`, `ExitsProcess(info, call) bool` (builtin `panic`,
+  `os.Exit`, declared `Fatal*`). `handle`; `msgloop` and `drain`.
 
 ## 3. Rule catalog
 
@@ -490,66 +496,101 @@ docs say to use `ClosedHandler` to learn when it finishes.
 
 ### 3.2 Tier 2 — lifecycle mistakes (default on, v0.2, some judgment)
 
-#### `handle`
+#### `handle` (implemented)
 
-- **Hooks**: calls returning `jetstream.ConsumeContext` (`Consumer.Consume`),
-  `jetstream.MessagesContext` (`Consumer.Messages`), `jetstream.KeyWatcher`
-  (`KeyValue.Watch`, `WatchAll`, `WatchFiltered`), `jetstream.ObjectWatcher`
-  (`ObjectStore.Watch`), `micro.Service` (`micro.AddService`). Legacy twins
-  (`nats.KeyWatcher`, `nats.ObjectWatcher`) included. `*nats.Subscription` from
-  `Conn.Subscribe*` is behind the flag `-handle.subscriptions` (default off): a
-  subscription that lives as long as the connection is a common, legitimate pattern.
-- **Detect**: the handle result is assigned to `_`.
-- **Message**: `ConsumeContext discarded; the consumer can never be stopped or drained`;
-  for watchers add `and its server-side consumer lingers until its inactive threshold`.
+- **Hooks**: calls returning `jetstream.ConsumeContext` (`Consumer.Consume`,
+  `PushConsumer.Consume`), `jetstream.MessagesContext` (`Consumer.Messages`),
+  `jetstream.KeyWatcher` (`KeyValue.Watch`, `WatchAll`, `WatchFiltered`),
+  `jetstream.ObjectWatcher` (`ObjectStore.Watch`), `micro.Service` (`micro.AddService`).
+  Legacy twins (`nats.KeyWatcher`, `nats.ObjectWatcher`) included. `*nats.Subscription`
+  from `Conn.Subscribe*` is not hooked and there is no flag for it: the corpus has about
+  480 such discards, 50 in production code, every one a subscription meant to live as
+  long as the connection (§8, item 12).
+- **Detect**: the first result is assigned to `_` (in any assignment, including an
+  `if`/`for`/`switch` initializer) or dropped by an expression statement. A `Consume` or
+  `Messages` call with a `jetstream.StopAfter` argument stops itself and is exempt.
+- **Message**: `<Type> from <Method> discarded; the consumer can never be stopped or
+  drained` / `...the watcher can never be stopped and its subscription lives as long as
+  the connection` / `...the service can never be stopped and keeps answering until the
+  connection closes`.
 - **Fix**: none.
-- **FP**: legitimate in short-lived `main`s; that is the accepted cost, users can disable.
-  Revisit after the corpus run (§4.3) — if the corpus is mostly `_, err := c.Consume(...)`
-  in `main`, downgrade this to opt-in.
-- **Tests**: each hook with `_` (bad) and with a named variable (ok).
+- **FP**: `main` is not exempt — it is the one place a signal handler would `Drain()` the
+  context, and nats.go's own examples keep it. Corpus: 3 TP (an example, two natscli
+  commands), 8 FP (tests asserting an error before any watcher exists); default-on.
+- **Tests**: each hook with `_` and as a bare statement (bad), kept, returned, `StopAfter`
+  literal and variable (ok), a user type with its own `Consume` (ok).
 
-#### `drain` (extension)
+#### `drain` (extension, implemented, default-on)
 
-- **Detect**: `defer x.Drain()` where the enclosing function is `func main()` in
-  `package main`, or a `TestXxx(*testing.T)` / `BenchmarkXxx` function. Process exit
-  truncates the drain, so the deferred call protects nothing.
-- **Message**: `deferred Drain in main does nothing useful: Drain returns immediately and
-  the process exits; wait for the ClosedHandler`.
-- **Open question**: this contradicts snippets in public NATS docs. Ship it only after
-  deciding that argument is worth having; keep it in `drain` behind a flag until then.
+- **Detect**: in `func main()` of `package main` only, `defer x.Drain()`, or an
+  `x.Drain()` statement that is the last statement of `main`, or is followed by a
+  `return` or by a call that exits the process (`os.Exit`, `log.Fatal*`, `panic`).
+  `Drain` returns after `go nc.drainConnection()`; the exit kills that goroutine. Test
+  and benchmark functions are not reported: their return does not end the process. The
+  deferred-`Close` check keeps its `main` exemption so a trailing `Drain` in `main` gets
+  this diagnostic alone.
+- **Message**: `Drain in main followed by process exit drains nothing; Drain returns
+  immediately, wait for the ClosedHandler before exiting`.
+- **Decision** (2026-09-17): ship it; public docs snippets that show `defer nc.Drain()`
+  in `main` are to be corrected, not accommodated. The corpus has no deferred `Drain` in
+  any `main`, but nats.go's `nats-qsub` and `nats-rply` examples do `nc.Drain();
+  log.Fatalf(...)` under a comment promising a drain — the "then exit" shape is the one
+  with evidence.
 
-#### `msgloop`
+#### `msgloop` (implemented)
 
 - **Hooks**: `jetstream.MessagesContext.Next`; `jetstream.Consumer.Fetch`, `FetchBytes`,
-  `FetchNoWait` results (`jetstream.MessageBatch`).
+  `FetchNoWait` and legacy `Subscription.FetchBatch` results (`MessageBatch`).
 - **Detect**:
-  1. Inside a `for` statement, `msg, err := it.Next()` followed by an `if err != nil`
-     whose body contains `continue` and contains no `return`, `break`, `goto`, `panic`,
-     `os.Exit`, and no reference to `jetstream.ErrMsgIteratorClosed`. After `Stop()`,
-     `Next` returns `ErrMsgIteratorClosed` forever and the loop busy-spins.
-  2. A `MessageBatch` value `r` whose `r.Messages()` is ranged over in a function that
-     never calls `r.Error()`. Errors such as `ErrNoHeartbeat` are lost.
-- **Message**: `loop continues on every Next error; after Stop this spins forever —
-  break on ErrMsgIteratorClosed`; `Fetch result ranged without checking Error()`.
+  1. Inside a condition-less `for` (no init, condition or post), `msg, err := it.Next()`
+     followed by an `if err != nil` — or an `if` with that assignment as its initializer
+     — whose then-branch contains no `return`, `break`, `goto`, continue of an outer
+     loop, or process-exiting call, and either ends in `continue` or has an `else`; and
+     nothing in the loop body refers to `jetstream.ErrMsgIteratorClosed`. After `Stop`
+     or `Drain`, `Next` returns `ErrMsgIteratorClosed` on every call without blocking
+     and the loop never exits (a `time.Sleep` in the branch turns the spin into a leaked
+     goroutine, same bug, same fix). Conditional loops have an exit the author chose and
+     are not reported; `Consumer.Next` is a one-shot fetch with a timeout and cannot spin.
+  2. A `range r.Messages()` where `r` is a local with a single definition from one of
+     the fetch calls, every use of `r` in the function is `r.Messages()` or `r.Error()`,
+     and `r.Error()` is never called. A batch passed to a helper or a batch parameter is
+     the other function's business. `fetchResult.err` carries `ErrNoHeartbeat`, a
+     terminal status such as consumer deleted, and the context's error.
+- **Message**: `loop continues on every Next error; after Stop or Drain, Next returns
+  ErrMsgIteratorClosed on every call and the loop never exits`; `<Method> result ranged
+  without checking Error(); a failed fetch looks like an empty batch`.
 - **Fix**: none.
-- **FP**: medium. A `continue` guarded by a `select` on a done channel elsewhere in the
-  loop is still flagged; acceptable, disabling is one flag.
-- **Tests**: spin loop (bad), loop with `errors.Is(err, jetstream.ErrMsgIteratorClosed)`
-  branch (ok), fetch without `Error()` (bad), with (ok).
+- **FP**: corpus 1 TP (the `jetstream-basic` docs example), 0 FP; nats.go's
+  `jetstream/test/` — where the batch-counting tests live — is not in the corpus.
+- **Tests**: log-and-continue, `else`, `if`-initializer, backoff (bad); labeled continue,
+  closed check in either place, return, `Fatal`, `os.Exit`, conditional and range loops,
+  `Consumer.Next`, timeout-only branch (ok); range without `Error` on each fetch method
+  (bad); `Error` after the range or in a deferred closure, helper, parameter, reassigned,
+  `select` receive (ok).
 
-#### `pubasync`
+#### `pubasync` (implemented)
 
-- **Hooks**: `jetstream.JetStream.PublishAsync`, `PublishMsgAsync`.
-- **Detect**: the `PubAckFuture` result is assigned to `_`, and the enclosing function
-  contains no call to `PublishAsyncComplete` and no reference to
-  `WithPublishAsyncErrHandler`. Acks and errors are never observed.
-- **Message**: `PublishAsync result discarded and PublishAsyncComplete never awaited;
-  publish errors are lost`.
+- **Hooks**: `PublishAsync`, `PublishMsgAsync` on `jetstream.JetStream` (declared in the
+  embedded `Publisher` interface) and legacy `nats.JetStream`.
+- **Detect**: the `PubAckFuture` result is assigned to `_` or dropped by an expression
+  statement, in a package none of whose files refers to `WithPublishAsyncErrHandler` /
+  `nats.PublishAsyncErrHandler` or calls `PublishAsyncComplete`. The exemptions are
+  package-wide, not function-wide: the handler is installed once per `JetStream`
+  instance, typically in a constructor, and the completion wait belongs to a `Close`;
+  nats.go's own `ObjectStore.Put` is the reference for the split, and a default-on rule
+  must not flag it. `WithPublishAsyncAckHandler` is not an exemption: `handleAsyncReply`
+  calls it only after a valid `PubAck`; errors go only to the future's `Err` and to the
+  error handler, so an ack handler without an error handler is the half-wired case the
+  rule exists for.
+- **Message**: `PubAckFuture from <Method> discarded and this package never sets an
+  async error handler or awaits PublishAsyncComplete; publish errors are lost`.
 - **Fix**: none.
-- **FP**: medium-high; the error handler may be configured in another function. Ship
-  default-on only if the corpus run shows it is quiet; otherwise opt-in.
-- **Tests**: discard without completion (bad); discard with `<-js.PublishAsyncComplete()`
-  (ok); future used with `select` on `Ok()`/`Err()` (ok).
+- **FP**: corpus 0 findings — every corpus package that discards a future also awaits
+  completion or installs a handler somewhere; the rule's precision rests on its seven
+  testdata packages. Default-on.
+- **Tests**: one testdata package per exemption state: discard shapes (bad), error
+  handler elsewhere, completion in another method, both handlers, legacy handler (ok),
+  ack handler only, legacy discard (bad).
 
 ### 3.3 Tier 3 — opinionated advice (opt-in via `-<rule>.enable`)
 
@@ -675,11 +716,11 @@ is one reviewable unit and helpers are built once. Specs are one per rule (each 
 item a requirement, each test case a scenario, the spec text doubling as the rule `Doc`)
 plus `analyzer-framework` and `testing`.
 
-Progress (2026-09-16): 1–3 and the release-readiness part of 4 are archived under
-`openspec/changes/archive/`; nothing is in flight. The next change to propose is
-`lifecycle-rules` (5); `golangci-plugin` (6) can run in parallel with it. The tag waits
-for the repository move. Read the archived change's `design.md` before extending a rule:
-that is where the corpus-driven corrections live.
+Progress (2026-09-17): 1–3, the release-readiness part of 4, and 5 are done
+(`lifecycle-rules` is implemented and awaiting archive under `openspec/changes/`). The
+next change to propose is `golangci-plugin` (6). The tag waits for the repository move.
+Read the archived change's `design.md` before extending a rule: that is where the
+corpus-driven corrections live.
 
 1. **`bootstrap`** (done): module, license, `cmd/natsvet`, `internal/natsapi` with only what
    the two rules below need, testdata module, CI, README skeleton, corpus script with
@@ -695,8 +736,10 @@ that is where the corpus-driven corrections live.
 4. **`release-readiness`** (done) and the tag (waiting): full triage over nine corpus
    sources, generated `docs/rules.md`, `-version`, README. The `v0.1.0` tag follows the
    repository move.
-5. **`lifecycle-rules`** (next): `handle`, `msgloop`, `pubasync`; defaults decided by the
-   corpus numbers. Reuses `SingleDefinition`, `EnclosingFuncBody` and the `Masker`.
+5. **`lifecycle-rules`** (done): `handle`, `msgloop`, `pubasync` and the `drain`-in-`main`
+   check, all default-on; the corpus confirmed the defaults (6 TP, 8 FP, none on
+   production code). Added `Discarded`, `PackageUses`, `IsNamedType` and `ExitsProcess`
+   to `natsapi`; reused `SingleDefinition` and `EnclosingFuncBody` (not the `Masker`).
 6. **`golangci-plugin`**: module plugin config in the repo, then the upstream PR once
    the module path is final.
 7. Later, separate designs: migration rewrites (legacy → `jetstream`), orbit.go
@@ -718,8 +761,10 @@ that is where the corpus-driven corrections live.
 
 1. Final repository home: `nats-io/natsvet` vs a module in `synadia-io/orbit.go`.
    Decided before any announcement; irrelevant until then.
-2. Whether to ship the `defer nc.Drain()`-in-`main` check at all (§3.2).
-3. Tier 2 defaults (`handle`, `pubasync`) — decided by the corpus run, not now.
+2. ~~Whether to ship the `defer nc.Drain()`-in-`main` check at all (§3.2).~~ Shipped
+   default-on in `lifecycle-rules`; the docs snippets are the thing to fix.
+3. ~~Tier 2 defaults (`handle`, `pubasync`) — decided by the corpus run, not now.~~ Both
+   default-on: no false positive on non-test code in the corpus (§3.2).
 4. Name: `natsvet` for the binary; golangci-lint linter names conventionally end in
    `lint`/`check` — may register there as `natslint` or `natscheck` while the module stays
    `natsvet`.
@@ -749,3 +794,14 @@ that is where the corpus-driven corrections live.
     transform source `events.>.*`, bad `{{split(3,1)}}` destination, republish cycle).
     `CompositeFields` already descends one level; the port of `ValidateMapping` is the
     work.
+11. Discarded `Fetch` batch: `_, err := c.Fetch(10)` sends a pull request whose messages
+    are delivered to nobody and redelivered after `AckWait`. Same shape as `handle`,
+    different consequence. The corpus has 57 such sites, all in tests, about half of them
+    `_, _ = sub.Fetch(1, nats.MaxWait(time.Microsecond))` to poke a pull; no production
+    evidence yet.
+12. Discarded `*nats.Subscription` (`_, err := nc.Subscribe(...)`): about 480 corpus
+    sites, 50 in production code (natscli, nats.go's examples, go-choria), every one a
+    subscription meant to live as long as the connection. Neither a default-on `handle`
+    row nor an off-by-default flag has evidence behind it; revisit only with a real case.
+13. `handle`/`pubasync` on `go`/`defer` statements (`go cons.Consume(h)`): not a discard
+    shape today; nobody writes it. Add to `Discarded` if it ever shows up.

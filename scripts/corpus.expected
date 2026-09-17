@@ -68,3 +68,21 @@ nats-server/server/jetstream_test.go:18021:25: stream config: capturing all subj
 nats-server/server/jetstream_test.go:6014:39: consumer config: consumer with flow control also needs heartbeats  # FP: TestJetStreamFlowControlRequiresHeartbeats: test asserts the server rejects flow control without heartbeats
 nats-server/server/jetstream_test.go:9776:28: stream config: stream mirrors can not contain subjects  # FP: TestJetStreamMirrorUpdatePreventsSubjects asserts the rejection
 nats-server/server/jwt_test.go:2270:24: publish subject ">" contains a wildcard; wildcards only match in subscriptions  # FP: TestJWTAccountURLResolverFetchFailureInCluster: publishes to the literal subject ">" on purpose; the subscriber's ">" wildcard receives it
+
+# lifecycle-rules: handle, msgloop, pubasync and the drain-in-main shape.
+# pubasync reports nothing: every corpus package that discards a future also
+# awaits PublishAsyncComplete or installs an error handler somewhere.
+nats.go/examples/docs/jetstream-basic/main.go:56:2: Fetch result ranged without checking Error(); a failed fetch looks like an empty batch  # TP: docs example never reads msgs.Error(); a missed heartbeat or a deleted consumer looks like an empty batch
+nats.go/examples/jetstream/js-ordered-consume/main.go:58:11: ConsumeContext from Consume discarded; the consumer can never be stopped or drained  # TP: the sibling examples keep the context and defer cc.Stop(); the SIGTERM handler here cannot drain in-flight messages
+nats.go/examples/nats-qsub/main.go:115:2: Drain in main followed by process exit drains nothing; Drain returns immediately, wait for the ClosedHandler before exiting  # TP: nc.Drain() then log.Fatalf; the comment promises a drain on scale-down that log.Fatalf's os.Exit cuts off
+nats.go/examples/nats-rply/main.go:117:2: Drain in main followed by process exit drains nothing; Drain returns immediately, wait for the ClosedHandler before exiting  # TP: same shape as nats-qsub
+nats.go/test/kv_test.go:314:17: KeyWatcher from WatchAll discarded; the watcher can never be stopped and its subscription lives as long as the connection  # FP: test asserts the IncludeHistory/UpdatesOnly conflict error; no watcher is created
+nats.go/test/kv_test.go:373:17: KeyWatcher from WatchAll discarded; the watcher can never be stopped and its subscription lives as long as the connection  # FP: test asserts the UpdatesOnly/IncludeHistory conflict error; no watcher is created
+nats.go/test/kv_test.go:422:13: KeyWatcher from Watch discarded; the watcher can never be stopped and its subscription lives as long as the connection  # FP: test asserts ErrInvalidKey; no watcher is created
+nats.go/test/kv_test.go:426:13: KeyWatcher from Watch discarded; the watcher can never be stopped and its subscription lives as long as the connection  # FP: test asserts ErrInvalidKey; no watcher is created
+nats.go/test/kv_test.go:429:13: KeyWatcher from Watch discarded; the watcher can never be stopped and its subscription lives as long as the connection  # FP: test asserts ErrInvalidKey; no watcher is created
+nats.go/test/kv_test.go:432:13: KeyWatcher from Watch discarded; the watcher can never be stopped and its subscription lives as long as the connection  # FP: test asserts ErrInvalidKey; no watcher is created
+natscli/cli/bench_command.go:2493:12: Service from AddService discarded; the service can never be stopped and keeps answering until the connection closes  # TP: the bench service is never stopped and cannot deregister before the connection is torn down
+natscli/cli/events_command.go:187:3: ConsumeContext from Consume discarded; the consumer can never be stopped or drained  # TP: bare cons.Consume(...) drops the context and Consume's error; an ordered-consumer failure is never surfaced and nothing drains on interrupt
+orbit.go/kvcodec/test/filter_test.go:107:12: KeyWatcher from Watch discarded; the watcher can never be stopped and its subscription lives as long as the connection  # FP: test asserts the codec's wildcard error; no watcher is created
+orbit.go/kvcodec/test/filter_test.go:99:12: KeyWatcher from Watch discarded; the watcher can never be stopped and its subscription lives as long as the connection  # FP: test asserts ErrWildcardNotSupported; no watcher is created
