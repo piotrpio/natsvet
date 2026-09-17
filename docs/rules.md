@@ -15,6 +15,7 @@ enabled with `-<rule>.enable`.
 | [`kvconfig`](#kvconfig) | on | no | report KV bucket names, history limits and keys nats.go rejects |
 | [`msgloop`](#msgloop) | on | no | report a Next loop that never exits and a Fetch batch ranged without Error |
 | [`nilheader`](#nilheader) | on | no | report header writes on a nats.Msg literal that has no Header |
+| [`pubasync`](#pubasync) | on | no | report a discarded PubAckFuture with no async error path in the package |
 | [`streamconfig`](#streamconfig) | on | no | report stream configurations the server rejects |
 | [`subject`](#subject) | on | no | report invalid subjects, wildcard publishes and bad queue names |
 | [`syncsub`](#syncsub) | on | no | report NextMsg on a subscription that is not synchronous |
@@ -196,6 +197,29 @@ message variable back to its single definition in the same function.
 m := &nats.Msg{Subject: "s"}
 m.Header.Set("X-Id", "1")   // panic: assignment to entry in nil map
 m := nats.NewMsg("s")       // allocates Header
+```
+
+## pubasync
+
+report a discarded PubAckFuture with no async error path in the package
+
+Default: on. Fix: no.
+
+The future's Err channel and the handler installed by
+WithPublishAsyncErrHandler are the only two places a rejected or timed-out
+async publish is ever reported; when the future is thrown away and the
+package neither installs the handler nor waits on PublishAsyncComplete, the
+publish fails silently and the caller believes the message was stored. An
+ack handler (WithPublishAsyncAckHandler) runs only for successful publishes
+and does not replace the error handler.
+
+```go
+_, err := js.PublishAsync("orders.new", data)   // a NACK is never seen
+f, err := js.PublishAsync("orders.new", data)
+select {
+case <-f.Ok():
+case err := <-f.Err():
+}
 ```
 
 ## streamconfig
