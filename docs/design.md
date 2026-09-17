@@ -716,9 +716,9 @@ is one reviewable unit and helpers are built once. Specs are one per rule (each 
 item a requirement, each test case a scenario, the spec text doubling as the rule `Doc`)
 plus `analyzer-framework` and `testing`.
 
-Progress (2026-09-17): 1–3, the release-readiness part of 4, and 5 are done
-(`lifecycle-rules` is implemented and awaiting archive under `openspec/changes/`). The
-next change to propose is `golangci-plugin` (6). The tag waits for the repository move.
+Progress (2026-09-17): 1–3, the release-readiness part of 4, and 5 are archived under
+`openspec/changes/archive/`; nothing is in flight. The next change to propose is
+`golangci-plugin` (6). The tag waits for the repository move.
 Read the archived change's `design.md` before extending a rule: that is where the
 corpus-driven corrections live.
 
