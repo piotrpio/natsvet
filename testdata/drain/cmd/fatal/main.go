@@ -11,32 +11,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package drain
+package main
 
 import (
-	"testing"
+	"log"
 
 	"github.com/nats-io/nats.go"
 )
 
-func TestDrainExempt(t *testing.T) {
+func main() {
 	nc, _ := nats.Connect("")
-	defer nc.Close()
-	nc.Drain()
-}
-
-func BenchmarkDrainExempt(b *testing.B) {
-	nc, _ := nats.Connect("")
-	defer nc.Close()
-	nc.Drain()
-}
-
-func helperInTest(nc *nats.Conn) {
-	defer nc.Close()
-	nc.Drain() // want `deferred Close runs as soon as Drain returns and aborts the drain`
-}
-
-func TestDeferredDrain(t *testing.T) {
-	nc, _ := nats.Connect("")
-	defer nc.Drain()
+	nc.Drain() // want `Drain in main followed by process exit drains nothing; Drain returns immediately, wait for the ClosedHandler before exiting`
+	log.Fatalf("Exiting")
 }

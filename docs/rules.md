@@ -8,7 +8,7 @@ enabled with `-<rule>.enable`.
 |------|---------|-----|---------|
 | [`consumerconfig`](#consumerconfig) | on | no | report consumer configurations the server rejects |
 | [`ctxdeadline`](#ctxdeadline) | on | no | report context.Background() or context.TODO() passed where a deadline is needed |
-| [`drain`](#drain) | on | no | report Close called right after Drain |
+| [`drain`](#drain) | on | no | report a Drain that Close or process exit cuts short |
 | [`duration`](#duration) | on | no | report untyped constants passed where nats.go expects a time.Duration |
 | [`handle`](#handle) | on | no | report a discarded ConsumeContext, MessagesContext, watcher or micro.Service |
 | [`headerkey`](#headerkey) | on | yes | report header keys that differ only in case from a NATS header |
@@ -59,15 +59,18 @@ ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 
 ## drain
 
-report Close called right after Drain
+report a Drain that Close or process exit cuts short
 
 Default: on. Fix: no.
 
 Drain returns as soon as it has started draining in a goroutine; the
 ClosedHandler reports when it finishes. A Close in the next statement, or a
 deferred Close that runs when the function returns from a trailing Drain,
-closes the connection and discards the drain in progress. main and test
-functions are exempt from the deferred form, where process exit dominates.
+closes the connection and discards the drain in progress. In main, a
+deferred Drain or a Drain followed by process exit (os.Exit, log.Fatal, the
+end of main) drains nothing at all: the process is gone before the goroutine
+has done anything. Tests are exempt from the deferred forms, where the
+function's return does not end the process.
 
 ```go
 nc.Drain()
@@ -75,6 +78,10 @@ nc.Close()          // aborts the drain
 
 defer nc.Close()
 return nc.Drain()   // same
+
+func main() {
+	defer nc.Drain() // drains nothing; wait for the ClosedHandler
+}
 ```
 
 ## duration

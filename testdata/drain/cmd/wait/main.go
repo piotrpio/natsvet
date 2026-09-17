@@ -11,32 +11,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package drain
+package main
 
-import (
-	"testing"
+import "github.com/nats-io/nats.go"
 
-	"github.com/nats-io/nats.go"
-)
-
-func TestDrainExempt(t *testing.T) {
-	nc, _ := nats.Connect("")
-	defer nc.Close()
+func main() {
+	done := make(chan struct{})
+	nc, _ := nats.Connect("", nats.ClosedHandler(func(*nats.Conn) { close(done) }))
 	nc.Drain()
-}
-
-func BenchmarkDrainExempt(b *testing.B) {
-	nc, _ := nats.Connect("")
-	defer nc.Close()
-	nc.Drain()
-}
-
-func helperInTest(nc *nats.Conn) {
-	defer nc.Close()
-	nc.Drain() // want `deferred Close runs as soon as Drain returns and aborts the drain`
-}
-
-func TestDeferredDrain(t *testing.T) {
-	nc, _ := nats.Connect("")
-	defer nc.Drain()
+	<-done
 }

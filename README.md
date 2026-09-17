@@ -50,7 +50,7 @@ cannot drift from what the tool does.
 | `ctxdeadline` | on | no | `context.Background()`/`context.TODO()` passed directly to `FlushWithContext` (`ErrNoDeadlineContext`), `RequestWithContext`/`NextMsgWithContext` (may block forever), or `nats.Context(...)` on legacy `Fetch` |
 | `syncsub` | on | no | `NextMsg` on a subscription created with a callback (`ErrSyncSubRequired`), a channel (steals from it) or a legacy pull subscribe (`ErrTypeSubscription`) |
 | `nilheader` | on | no | `Header.Set`/`Add` or `Header[k] =` on a `nats.Msg` literal without a `Header` — a nil-map panic; `nats.NewMsg` allocates it |
-| `drain` | on | no | `Close()` right after `Drain()`, or `defer nc.Close()` in a function that ends with `Drain()`; `Drain` returns immediately and the `Close` aborts it |
+| `drain` | on | no | `Close()` right after `Drain()`, `defer nc.Close()` in a function that ends with `Drain()`, or a `Drain()` in `main` that is deferred or followed by process exit; `Drain` returns immediately, so the `Close` aborts it and the exit drains nothing |
 | `handle` | on | no | a `ConsumeContext`, `MessagesContext`, `KeyWatcher`, `ObjectWatcher` or `micro.Service` assigned to `_` or dropped; nothing can ever `Stop` or `Drain` it |
 | `msgloop` | on | no | a `for { msg, err := it.Next(); if err != nil { continue } }` that never exits once the iterator is stopped, and a `Fetch` batch ranged over without `Error()` |
 | `pubasync` | on | no | a `PublishAsync` future assigned to `_` in a package that neither installs `WithPublishAsyncErrHandler` nor awaits `PublishAsyncComplete`; publish errors are lost |

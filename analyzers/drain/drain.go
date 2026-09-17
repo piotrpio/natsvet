@@ -27,19 +27,26 @@ import (
 	"github.com/piotrpio/natsvet/internal/natsapi"
 )
 
-const doc = `drain: report Close called right after Drain
+const doc = `drain: report a Drain that Close or process exit cuts short
 
 Drain returns as soon as it has started draining in a goroutine; the
 ClosedHandler reports when it finishes. A Close in the next statement, or a
 deferred Close that runs when the function returns from a trailing Drain,
-closes the connection and discards the drain in progress. main and test
-functions are exempt from the deferred form, where process exit dominates.
+closes the connection and discards the drain in progress. In main, a
+deferred Drain or a Drain followed by process exit (os.Exit, log.Fatal, the
+end of main) drains nothing at all: the process is gone before the goroutine
+has done anything. Tests are exempt from the deferred forms, where the
+function's return does not end the process.
 
 	nc.Drain()
 	nc.Close()          // aborts the drain
 
 	defer nc.Close()
-	return nc.Drain()   // same`
+	return nc.Drain()   // same
+
+	func main() {
+		defer nc.Drain() // drains nothing; wait for the ClosedHandler
+	}`
 
 const name = "drain"
 
@@ -53,6 +60,7 @@ var Analyzer = &analysis.Analyzer{
 const (
 	adjacentMsg = "Close immediately after Drain aborts the drain; wait for the ClosedHandler instead"
 	deferredMsg = "deferred Close runs as soon as Drain returns and aborts the drain; wait for the ClosedHandler before returning"
+	exitMsg     = "Drain in main followed by process exit drains nothing; Drain returns immediately, wait for the ClosedHandler before exiting"
 )
 
 func run(pass *analysis.Pass) (any, error) {
@@ -92,7 +100,58 @@ func run(pass *analysis.Pass) (any, error) {
 		}
 		checkDeferred(body, connCall, report)
 	})
+	ins.Preorder([]ast.Node{(*ast.FuncDecl)(nil)}, func(n ast.Node) {
+		if fd := n.(*ast.FuncDecl); fd.Body != nil && isMain(pass, fd) {
+			checkMain(info, fd.Body, connCall, report)
+		}
+	})
 	return nil, nil
+}
+
+// checkMain reports, in main, a deferred Drain and a Drain that is the last
+// statement, or is followed by a return or a call that exits the process.
+func checkMain(info *types.Info, body *ast.BlockStmt, connCall connCallFunc, report func(*ast.CallExpr, string)) {
+	ast.Inspect(body, func(n ast.Node) bool {
+		if _, ok := n.(*ast.FuncLit); ok {
+			return false
+		}
+		list := blockList(n)
+		for i, s := range list {
+			var call *ast.CallExpr
+			switch s := s.(type) {
+			case *ast.DeferStmt:
+				_, call = connCall(s.Call, "Drain")
+			case *ast.ExprStmt:
+				if _, call = connCall(s.X, "Drain"); call == nil {
+					continue
+				}
+				if !(n == ast.Node(body) && i == len(list)-1 || i+1 < len(list) && exitsAfter(info, list[i+1])) {
+					call = nil
+				}
+			}
+			if call != nil {
+				report(call, exitMsg)
+			}
+		}
+		return true
+	})
+}
+
+// exitsAfter reports whether s is a return or a call that never returns.
+func exitsAfter(info *types.Info, s ast.Stmt) bool {
+	switch s := s.(type) {
+	case *ast.ReturnStmt:
+		return true
+	case *ast.ExprStmt:
+		call, ok := ast.Unparen(s.X).(*ast.CallExpr)
+		return ok && natsapi.ExitsProcess(info, call)
+	}
+	return false
+}
+
+// isMain reports whether fd is func main in package main.
+func isMain(pass *analysis.Pass, fd *ast.FuncDecl) bool {
+	return fd.Recv == nil && fd.Name.Name == "main" && pass.Pkg.Name() == "main"
 }
 
 func blockList(n ast.Node) []ast.Stmt {
@@ -212,16 +271,17 @@ func checkDeferred(body *ast.BlockStmt, connCall connCallFunc, report func(*ast.
 	}
 }
 
-// exempt reports whether fd is main in package main or a test, benchmark
-// or fuzz function, where process exit makes the deferred Close moot.
+// exempt reports whether fd is main in package main (checkMain reports the
+// trailing Drain there) or a test, benchmark or fuzz function, whose return
+// does not end the process.
 func exempt(pass *analysis.Pass, fd *ast.FuncDecl) bool {
 	if fd.Recv != nil {
 		return false
 	}
-	n := fd.Name.Name
-	if n == "main" && pass.Pkg.Name() == "main" {
+	if isMain(pass, fd) {
 		return true
 	}
+	n := fd.Name.Name
 	file := pass.Fset.File(fd.Pos())
 	if file == nil || !strings.HasSuffix(file.Name(), "_test.go") {
 		return false

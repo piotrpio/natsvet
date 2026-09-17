@@ -91,3 +91,9 @@ func deferredOther(nc, other *nats.Conn) {
 func noDefer(nc *nats.Conn) {
 	nc.Drain()
 }
+
+// main in a package other than main is an ordinary function.
+func main() {
+	nc, _ := nats.Connect("")
+	defer nc.Drain()
+}

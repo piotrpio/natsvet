@@ -18,8 +18,15 @@ import "github.com/nats-io/nats.go"
 func main() {
 	nc, _ := nats.Connect("")
 	defer nc.Close()
-	nc.Drain()
+	nc.Drain() // want `Drain in main followed by process exit drains nothing; Drain returns immediately, wait for the ClosedHandler before exiting`
 }
+
+func deferredInHelper(nc *nats.Conn) {
+	defer nc.Drain()
+	run()
+}
+
+func run() {}
 
 func helper(nc *nats.Conn) {
 	defer nc.Close()
