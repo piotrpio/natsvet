@@ -13,6 +13,7 @@ enabled with `-<rule>.enable`.
 | [`handle`](#handle) | on | no | report a discarded ConsumeContext, MessagesContext, watcher or micro.Service |
 | [`headerkey`](#headerkey) | on | yes | report header keys that differ only in case from a NATS header |
 | [`kvconfig`](#kvconfig) | on | no | report KV bucket names, history limits and keys nats.go rejects |
+| [`msgloop`](#msgloop) | on | no | report a Next loop that never exits and a Fetch batch ranged without Error |
 | [`nilheader`](#nilheader) | on | no | report header writes on a nats.Msg literal that has no Header |
 | [`streamconfig`](#streamconfig) | on | no | report stream configurations the server rejects |
 | [`subject`](#subject) | on | no | report invalid subjects, wildcard publishes and bad queue names |
@@ -146,6 +147,38 @@ ErrInvalidStoreName, ErrHistoryTooLarge or ErrInvalidKey at runtime.
 js.KeyValue(ctx, "my.bucket")   // ErrInvalidBucketName
 kv.Put(ctx, "user name", data)  // ErrInvalidKey
 kv.Watch(ctx, "users.*")        // fine: filters may use wildcards
+```
+
+## msgloop
+
+report a Next loop that never exits and a Fetch batch ranged without Error
+
+Default: on. Fix: no.
+
+A for loop that calls MessagesContext.Next and continues on every error never
+exits once the iterator is stopped or drained, because Next then returns
+ErrMsgIteratorClosed on every call without blocking. A Fetch result whose
+Messages channel is ranged over without checking Error afterwards drops the
+batch's terminal error, so a missed heartbeat or a deleted consumer looks
+like an empty batch.
+
+```go
+for {
+	msg, err := it.Next()
+	if err != nil {
+		log.Println(err)
+		continue           // forever, once it.Stop() has run
+	}
+	msg.Ack()
+}
+
+msgs, _ := cons.Fetch(10)
+for msg := range msgs.Messages() {
+	msg.Ack()
+}
+if err := msgs.Error(); err != nil { // the part that is missing
+	return err
+}
 ```
 
 ## nilheader

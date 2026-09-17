@@ -30,6 +30,7 @@ import (
 	"github.com/piotrpio/natsvet/analyzers/headerkey"
 	"github.com/piotrpio/natsvet/analyzers/kvconfig"
 	"github.com/piotrpio/natsvet/analyzers/legacyjs"
+	"github.com/piotrpio/natsvet/analyzers/msgloop"
 	"github.com/piotrpio/natsvet/analyzers/nilheader"
 	"github.com/piotrpio/natsvet/analyzers/streamconfig"
 	"github.com/piotrpio/natsvet/analyzers/subject"
@@ -46,6 +47,7 @@ func Analyzers() []*analysis.Analyzer {
 		handle.Analyzer,
 		headerkey.Analyzer,
 		kvconfig.Analyzer,
+		msgloop.Analyzer,
 		nilheader.Analyzer,
 		streamconfig.Analyzer,
 		subject.Analyzer,
