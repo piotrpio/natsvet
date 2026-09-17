@@ -51,6 +51,7 @@ cannot drift from what the tool does.
 | `syncsub` | on | no | `NextMsg` on a subscription created with a callback (`ErrSyncSubRequired`), a channel (steals from it) or a legacy pull subscribe (`ErrTypeSubscription`) |
 | `nilheader` | on | no | `Header.Set`/`Add` or `Header[k] =` on a `nats.Msg` literal without a `Header` — a nil-map panic; `nats.NewMsg` allocates it |
 | `drain` | on | no | `Close()` right after `Drain()`, or `defer nc.Close()` in a function that ends with `Drain()`; `Drain` returns immediately and the `Close` aborts it |
+| `handle` | on | no | a `ConsumeContext`, `MessagesContext`, `KeyWatcher`, `ObjectWatcher` or `micro.Service` assigned to `_` or dropped; nothing can ever `Stop` or `Drain` it |
 | `headerkey` | on | yes | a header key that differs only in case from a NATS header (`nats-msg-id` vs `Nats-Msg-Id`); nats.go header lookups are case-sensitive, so the lookup silently fails |
 | `legacyjs` | opt-in | no | every use of the legacy `nats.JetStreamContext` / `nats.KeyValue` / `nats.ObjectStore` API, as an inventory for migrating to the `jetstream` package |
 

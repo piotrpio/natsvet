@@ -10,6 +10,7 @@ enabled with `-<rule>.enable`.
 | [`ctxdeadline`](#ctxdeadline) | on | no | report context.Background() or context.TODO() passed where a deadline is needed |
 | [`drain`](#drain) | on | no | report Close called right after Drain |
 | [`duration`](#duration) | on | no | report untyped constants passed where nats.go expects a time.Duration |
+| [`handle`](#handle) | on | no | report a discarded ConsumeContext, MessagesContext, watcher or micro.Service |
 | [`headerkey`](#headerkey) | on | yes | report header keys that differ only in case from a NATS header |
 | [`kvconfig`](#kvconfig) | on | no | report KV bucket names, history limits and keys nats.go rejects |
 | [`nilheader`](#nilheader) | on | no | report header writes on a nats.Msg literal that has no Header |
@@ -90,6 +91,25 @@ API in the nats, jetstream and micro packages.
 ```go
 nc.Request("s", nil, 5)            // 5ns
 nc.Request("s", nil, 5*time.Second)
+```
+
+## handle
+
+report a discarded ConsumeContext, MessagesContext, watcher or micro.Service
+
+Default: on. Fix: no.
+
+The handle returned by Consume, Messages, Watch or AddService is the only way
+to Stop or Drain what the call started; assigned to the blank identifier or
+dropped as an expression statement, the consumer, watcher or service runs
+until the connection closes and in-flight work cannot be finished cleanly. A
+Consume or Messages call with a jetstream.StopAfter option stops itself and
+is not reported.
+
+```go
+_, err := cons.Consume(handler)   // nothing can ever stop this consumer
+cc, err := cons.Consume(handler)
+defer cc.Drain()
 ```
 
 ## headerkey

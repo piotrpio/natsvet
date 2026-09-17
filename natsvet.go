@@ -26,6 +26,7 @@ import (
 	"github.com/piotrpio/natsvet/analyzers/ctxdeadline"
 	"github.com/piotrpio/natsvet/analyzers/drain"
 	"github.com/piotrpio/natsvet/analyzers/duration"
+	"github.com/piotrpio/natsvet/analyzers/handle"
 	"github.com/piotrpio/natsvet/analyzers/headerkey"
 	"github.com/piotrpio/natsvet/analyzers/kvconfig"
 	"github.com/piotrpio/natsvet/analyzers/legacyjs"
@@ -42,6 +43,7 @@ func Analyzers() []*analysis.Analyzer {
 		ctxdeadline.Analyzer,
 		drain.Analyzer,
 		duration.Analyzer,
+		handle.Analyzer,
 		headerkey.Analyzer,
 		kvconfig.Analyzer,
 		nilheader.Analyzer,
