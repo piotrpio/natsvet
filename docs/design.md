@@ -3,7 +3,8 @@
 Status: living design. Work is planned and tracked as OpenSpec changes under `openspec/`;
 this document is the rationale they refer back to. As of 2026-09-17 `main` is
 release-ready: every Tier 1 and Tier 2 rule is implemented and specified, the corpus (§4.3)
-passes with every finding triaged, and `go install ...@latest` works. The first tag follows
+passes with every finding triaged, `go install ...@latest` works, and the golangci-lint
+module plugin (§5) builds and matches the binary. The first tag follows
 the repository move (§8, item 1), which follows internal dogfooding; a tag under the current
 personal path would make it sticky for `go install` users. Rule lists in §3 are derived from the
 nats.go / nats-server source at the commits named in §3 and are re-derived when a rule is
@@ -70,7 +71,10 @@ channel — as a golangci-lint linter.
   `klauspost/compress`, `nkeys`, `nuid`; the linter does not import nats.go at all
   (analyzers match on package path and identifier through `go/types`); release cadences
   differ; nats.go CI is minutes of integration tests, this is seconds of unit tests.
-- Only production dependency: `golang.org/x/tools`. Test-only: nats.go (see §4).
+- Production dependencies: `golang.org/x/tools`, and `github.com/golangci/plugin-module-register`
+  for the golangci-lint plugin package (`plugin/`) — golangci-owned, Apache-2, itself
+  depending only on `golang.org/x/tools`, and not linked into `cmd/natsvet`. Test-only:
+  nats.go (see §4).
 - Go version: whatever the pinned `golang.org/x/tools` requires. `go fix -fixtool` needs
   Go 1.26 on the user's side, not the tool's.
 
@@ -700,12 +704,17 @@ are bumped deliberately: rerun, triage the delta, commit both files.
    `unitchecker` when `go vet` invokes it, so the same binary works.
 3. `go fix -fixtool=$(which natsvet) ./...` on Go 1.26+ applies `SuggestedFixes` through
    the standard toolchain. Same binary.
-4. golangci-lint: the real reach. Interim: module plugin (`golangci-lint custom` with
-   `.custom-gcl.yml`) for Synadia-internal dogfooding. Goal: upstream as a built-in
-   linter; library-specific linters with low-FP rules are accepted there (`testifylint`,
-   `ginkgolinter`, `zerologlint`, `sloglint`, `protogetter` are precedents). The rule
-   `Doc` strings are the linter documentation. Upstreaming requires the final module
-   path, so it waits for the repository move.
+4. golangci-lint: the real reach. Shipped as a module plugin: `plugin/` registers
+   `natsvet` with `plugin-module-register`; a `.custom-gcl.yml` naming the module and
+   that import path builds a `custom-gcl` binary (`golangci-lint custom`); the
+   `settings` block is `enable`/`disable` lists of rule ids, strictly validated; findings
+   read `<rule>: <message> (natsvet)`; `make plugin` proves parity with the binary over
+   `testdata` and CI runs it. Goal: upstream as a built-in linter; library-specific
+   linters with low-FP rules are accepted there (`testifylint`, `ginkgolinter`,
+   `zerologlint`, `sloglint`, `protogetter` are precedents). The rule `Doc` strings are
+   the linter documentation. Upstreaming requires the final module path and the name
+   decision (§8, item 4), so it waits for the repository move; the archived
+   `golangci-plugin` change's design carries the PR checklist.
 5. gopls cannot load third-party analyzers; in-editor diagnostics come from golangci-lint
    integrations (VS Code Go extension lint tool, GoLand, neovim).
 
@@ -716,9 +725,10 @@ is one reviewable unit and helpers are built once. Specs are one per rule (each 
 item a requirement, each test case a scenario, the spec text doubling as the rule `Doc`)
 plus `analyzer-framework` and `testing`.
 
-Progress (2026-09-17): 1–3, the release-readiness part of 4, and 5 are archived under
-`openspec/changes/archive/`; nothing is in flight. The next change to propose is
-`golangci-plugin` (6). The tag waits for the repository move.
+Progress (2026-09-17): 1–3, the release-readiness part of 4, 5 and 6 are done
+(`golangci-plugin` is implemented and awaiting archive under `openspec/changes/`). The
+tag and the upstream golangci-lint PR wait for the repository move; the only
+in-repository work left is item 7.
 Read the archived change's `design.md` before extending a rule: that is where the
 corpus-driven corrections live.
 
@@ -740,8 +750,9 @@ corpus-driven corrections live.
    check, all default-on; the corpus confirmed the defaults (6 TP, 8 FP, none on
    production code). Added `Discarded`, `PackageUses`, `IsNamedType` and `ExitsProcess`
    to `natsapi`; reused `SingleDefinition` and `EnclosingFuncBody` (not the `Masker`).
-6. **`golangci-plugin`**: module plugin config in the repo, then the upstream PR once
-   the module path is final.
+6. **`golangci-plugin`** (done): `plugin/` package, root `.custom-gcl.yml`,
+   `scripts/plugin.sh` parity check and CI job, README section. The upstream PR follows
+   the module path.
 7. Later, separate designs: migration rewrites (legacy → `jetstream`), orbit.go
    recommendation rules, orbit.go API rules.
 

@@ -34,6 +34,55 @@ Default-on rules can be turned off with `-<rule>=false`; opt-in rules are enable
 `-<rule>.enable`. A `go vet` run caches results per package, so rebuild-and-rerun after
 changing the binary.
 
+### golangci-lint
+
+natsvet is a golangci-lint [module plugin](https://golangci-lint.run/docs/plugins/module-plugins/).
+Build a golangci-lint binary that contains it from a `.custom-gcl.yml` in your project:
+
+```yaml
+version: v2.13.2
+plugins:
+  - module: github.com/piotrpio/natsvet
+    import: github.com/piotrpio/natsvet/plugin
+    version: main   # a tag once one exists; main resolves to a pseudo-version
+```
+
+```sh
+golangci-lint custom     # writes ./custom-gcl
+```
+
+Then enable it in `.golangci.yml`; the `settings` block turns opt-in rules on and
+default-on rules off, and an unknown rule name or key fails the run:
+
+```yaml
+version: "2"
+linters:
+  enable:
+    - natsvet
+  settings:
+    custom:
+      natsvet:
+        type: module
+        description: nats.go lifecycle and configuration mistakes
+        original-url: github.com/piotrpio/natsvet
+        settings:
+          enable:
+            - legacyjs
+          disable:
+            - drain
+```
+
+Findings carry the rule id, so `./custom-gcl run ./...` prints, for example:
+
+```
+main.go:42:2: drain: Close immediately after Drain aborts the drain; wait for the ClosedHandler instead (natsvet)
+```
+
+`//nolint:natsvet` silences the whole linter on a line, as `//nolint:govet` does; a single
+rule is turned off for the module with `disable`. The repository's own `.custom-gcl.yml`
+builds from the checkout (`make plugin` also proves the plugin reports exactly what the
+binary reports over `testdata`).
+
 ## Rules
 
 Every rule's documentation, with a before/after snippet, is in
