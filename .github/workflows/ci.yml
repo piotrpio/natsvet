@@ -54,3 +54,24 @@ jobs:
           key: corpus-${{ hashFiles('scripts/corpus.txt') }}
       - name: Run corpus
         run: make corpus
+
+  plugin:
+    name: golangci-lint plugin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache-dependency-path: |
+            go.sum
+            testdata/go.sum
+      - name: Download testdata module
+        run: make testdata-deps
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13.2
+          install-only: true
+      - name: Build the custom binary and check parity with natsvet
+        run: make plugin

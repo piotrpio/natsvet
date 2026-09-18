@@ -1,0 +1,11 @@
+# Builds bin/custom-gcl, a golangci-lint binary with natsvet inside it, from
+# this checkout: `golangci-lint custom`. Users point at a version instead of a
+# path; see the golangci-lint section of the README. The version below is the
+# golangci-lint release the binary is built from and the one CI installs.
+version: v2.13.2
+name: custom-gcl
+destination: ./bin
+plugins:
+  - module: github.com/piotrpio/natsvet
+    import: github.com/piotrpio/natsvet/plugin
+    path: .

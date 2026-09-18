@@ -1,0 +1,29 @@
+# Configuration for the plugin parity check (scripts/plugin.sh): only natsvet,
+# every opt-in rule on, nothing capped or deduplicated, plain output.
+version: "2"
+run:
+  relative-path-mode: cfg
+linters:
+  default: none
+  enable:
+    - natsvet
+  settings:
+    custom:
+      natsvet:
+        type: module
+        description: nats.go lifecycle and configuration mistakes
+        original-url: github.com/piotrpio/natsvet
+        settings:
+          enable:
+            - legacyjs
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  uniq-by-line: false
+output:
+  formats:
+    text:
+      path: stdout
+      print-linter-name: false
+      print-issued-lines: false
+  show-stats: false

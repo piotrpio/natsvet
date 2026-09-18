@@ -1,7 +1,7 @@
 GO ?= go
 BIN := bin/natsvet
 
-.PHONY: build test lint generate corpus testdata-deps
+.PHONY: build test lint generate corpus plugin testdata-deps
 
 build:
 	$(GO) build -o $(BIN) ./cmd/natsvet
@@ -24,3 +24,6 @@ generate:
 
 corpus: build
 	scripts/corpus.sh $(BIN)
+
+plugin: build
+	scripts/plugin.sh $(BIN)
