@@ -25,5 +25,6 @@ generate:
 corpus: build
 	scripts/corpus.sh $(BIN)
 
+# CUSTOM_GCL=<path> checks an already built custom-gcl instead of building one.
 plugin: build
-	scripts/plugin.sh $(BIN)
+	scripts/plugin.sh $(BIN) $(CUSTOM_GCL)

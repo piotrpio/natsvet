@@ -68,10 +68,12 @@ jobs:
             testdata/go.sum
       - name: Download testdata module
         run: make testdata-deps
-      - name: Install golangci-lint
+      # With .custom-gcl.yml present the action builds bin/custom-gcl itself.
+      - name: Install golangci-lint and build the custom binary
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.13.2
           install-only: true
-      - name: Build the custom binary and check parity with natsvet
-        run: make plugin
+          skip-cache: true
+      - name: Check parity with natsvet
+        run: make plugin CUSTOM_GCL=bin/custom-gcl

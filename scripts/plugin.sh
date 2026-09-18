@@ -2,23 +2,29 @@
 # Proves the golangci-lint module plugin reports what the standalone binary
 # reports: builds bin/custom-gcl from .custom-gcl.yml, runs it and natsvet
 # (every opt-in rule enabled) over the testdata module, normalizes both
-# outputs and diffs them. Usage: scripts/plugin.sh <natsvet binary>.
-# Needs golangci-lint (any v2) on PATH to run `golangci-lint custom`, which
-# fetches the golangci-lint version pinned in .custom-gcl.yml.
+# outputs and diffs them. Usage: scripts/plugin.sh <natsvet binary> [custom-gcl].
+# Without the second argument the script runs `golangci-lint custom`, which
+# needs golangci-lint (any v2) on PATH and fetches the version pinned in
+# .custom-gcl.yml; with it, an already built binary is checked instead (CI
+# passes the one golangci-lint-action builds from the same file).
 set -euo pipefail
 
-BIN=${1:?usage: scripts/plugin.sh <natsvet binary>}
+BIN=${1:?usage: scripts/plugin.sh <natsvet binary> [custom-gcl]}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 BIN=$(cd "$(dirname "$BIN")" && pwd)/$(basename "$BIN")
 TESTDATA=$ROOT/testdata
 PIN=$(sed -n 's/^version: *//p' "$ROOT/.custom-gcl.yml")
-CUSTOM=$ROOT/bin/custom-gcl
 
-command -v golangci-lint >/dev/null || {
-	echo "plugin: golangci-lint not found on PATH; install v2 (https://golangci-lint.run/docs/welcome/install/)" >&2
-	exit 1
-}
-(cd "$ROOT" && golangci-lint custom)
+if [ -n "${2:-}" ]; then
+	CUSTOM=$(cd "$(dirname "$2")" && pwd)/$(basename "$2")
+else
+	command -v golangci-lint >/dev/null || {
+		echo "plugin: golangci-lint not found on PATH; install v2 (https://golangci-lint.run/docs/welcome/install/)" >&2
+		exit 1
+	}
+	(cd "$ROOT" && golangci-lint custom)
+	CUSTOM=$ROOT/bin/custom-gcl
+fi
 if ! "$CUSTOM" version 2>&1 | grep -q "$PIN"; then
 	echo "plugin: bin/custom-gcl does not report the pinned $PIN:" >&2
 	"$CUSTOM" version >&2
