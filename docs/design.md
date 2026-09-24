@@ -288,11 +288,14 @@ are out of scope: the rule cannot see them.
 #### `streamconfig`
 
 Mirrors nats-server `checkStreamCfgLocked` (`server/stream.go`). Same constant-only
-policy. Checks inside nested `Mirror`/`Sources`/`SubjectTransform`/`RePublish` literals
-and checks against account limits or other streams are out of scope for now.
+policy. Checks against account limits or other streams are out of scope; nested
+`SubjectTransformConfig`, `RePublish` and `StreamSource` literals are covered by items
+14–15 (`nested-config`).
 
-- **Hooks**: composite literals of `jetstream.StreamConfig`, `nats.StreamConfig`. Field
-  names below are the `jetstream` ones (`MaxMsgsPerSubject`, `DiscardNewPerSubject`).
+- **Hooks**: composite literals of `jetstream.StreamConfig`, `nats.StreamConfig`, and of
+  `SubjectTransformConfig`, `RePublish` and `StreamSource` in either package wherever they
+  are written. Field names below are the `jetstream` ones (`MaxMsgsPerSubject`,
+  `DiscardNewPerSubject`).
 - **Detect**, in server order (absent enum fields take the server default: `Retention`
   `LimitsPolicy`, `Discard` `DiscardOld`, `Storage` `FileStorage`, `Replicas` `1`):
   1. `Name` empty, failing `isValidAssetName` (see `consumerconfig` 1), or longer than
@@ -319,7 +322,27 @@ and checks against account limits or other streams are out of scope for now.
       with `Replicas != 1`; an element colliding with `$JS.>`, `$JSC.>`, `$NRG.>` (unless
       a subset of `$JS.EVENT.>`) or `$SYS.>` (unless a subset of `$SYS.ACCOUNT.>`)
       without `NoAck`.
-- **Message**: `stream config: <server's wording>`.
+  14. On a nested literal alone, wherever it is written (a stream config, a KeyValue
+      config, its own variable): a transform `Source` that is non-empty and fails
+      `IsValidSubject`; a transform `ValidateMapping(Source, Destination)` rejects (ported
+      with `NewSubjectTransform` from `server/sublist.go` and `server/subject_transform.go`
+      and pinned by the server's own tables; an empty source means `>`); a `RePublish`
+      pair `NewSubjectTransform` rejects (empty source `>`, so `RePublish{Destination:
+      "repub.orders"}` is rejected); `FilterSubject` with non-empty `SubjectTransforms`;
+      two transform sources where one is a subset of the other (`SubjectsCollide` for a
+      `Mirror`, a KeyValue mirror included); `Domain` with `External` (nats.go
+      `convertDomain`); a `Consumer` whose name fails `isValidAssetName` or whose deliver
+      subject is not a valid literal subject, or on a source with a start position or a
+      filter subject. The transform checks skip sources of a legacy `nats.KeyValueConfig`,
+      whose transforms legacy `CreateKeyValue` replaces.
+  15. Inside a stream config only: a `nil` source or one whose `Name` fails
+      `isValidAssetName`; a `Mirror` whose `Name` fails it and that has neither `External`
+      nor `Domain`; a `RePublish` destination colliding with the stream subjects (the
+      default `[Name]` when `Subjects`, `Mirror` and `Sources` are absent, and the
+      implicit republish through a single-subject `SubjectTransform`).
+- **Message**: `stream config: <server's wording>`, reported at the nested literal for
+  items 14–15; transform errors quote the server's text (`invalid mapping destination:
+  wildcard index out of range in {{split(3,1)}}: [3]`).
 - **Fix**: none.
 - **FP**: none by construction.
 - **Tests**: as for `consumerconfig`.
@@ -327,7 +350,8 @@ and checks against account limits or other streams are out of scope for now.
 #### `kvconfig`
 
 Client-side validations in nats.go `jetstream/kv.go` that return `ErrInvalidBucketName`,
-`ErrHistoryTooLarge`, `ErrInvalidKey` at runtime.
+`ErrHistoryTooLarge`, `ErrInvalidKey` at runtime, and one server-side check (item 4,
+`nested-config`): the republish cycle on the stream nats.go builds for a bucket.
 
 - **Hooks**: composite literals of `jetstream.KeyValueConfig`, `nats.KeyValueConfig`,
   `jetstream.ObjectStoreConfig`, `nats.ObjectStoreConfig`; calls to methods on
@@ -342,8 +366,14 @@ Client-side validations in nats.go `jetstream/kv.go` that return `ErrInvalidBuck
      and are accepted.
   3. Key constant that is empty, starts or ends with `.`, contains `..`, or fails
      `validKeyRe` (`validSearchKeyRe` for `Watch*`/`ListKeysFiltered`).
+  4. A `RePublish` literal whose destination collides with `$KV.<bucket>.>` in a
+     `KeyValueConfig` with a valid constant `Bucket` and no `Mirror`: nats.go
+     (`prepareKeyValueConfig`, legacy `CreateKeyValue`) passes `RePublish` through and
+     sets that subject, and nats-server's republish cycle check rejects the stream.
 - **Message**: `invalid KV key "foo bar": keys may only contain [-/_=.a-zA-Z0-9]`;
-  `KV history 100 exceeds the maximum of 64`; `invalid bucket name "my.bucket"`.
+  `KV history 100 exceeds the maximum of 64`; `invalid bucket name "my.bucket"`;
+  `republish destination ">" forms a cycle with the bucket subject "$KV.orders.>"; the
+  server rejects the bucket`.
 - **Fix**: none.
 - **FP**: none by construction.
 - **Tests**: valid/invalid bucket; history 64 (ok) and 65; keys with space, leading dot,
@@ -725,10 +755,9 @@ is one reviewable unit and helpers are built once. Specs are one per rule (each 
 item a requirement, each test case a scenario, the spec text doubling as the rule `Doc`)
 plus `analyzer-framework` and `testing`.
 
-Progress (2026-09-17): 1–3, the release-readiness part of 4, 5 and 6 are done
-(`golangci-plugin` is implemented and awaiting archive under `openspec/changes/`). The
-tag and the upstream golangci-lint PR wait for the repository move; the only
-in-repository work left is item 7.
+Progress (2026-09-24): 1–3, the release-readiness part of 4, and 5–7 are done;
+`headerkey-near-miss` (§8 item 9) is proposed. The tag and the upstream golangci-lint PR
+wait for the repository move.
 Read the archived change's `design.md` before extending a rule: that is where the
 corpus-driven corrections live.
 
@@ -753,7 +782,14 @@ corpus-driven corrections live.
 6. **`golangci-plugin`** (done): `plugin/` package, root `.custom-gcl.yml`,
    `scripts/plugin.sh` parity check and CI job, README section. The upstream PR follows
    the module path.
-7. Later, separate designs: migration rewrites (legacy → `jetstream`), orbit.go
+7. **`nested-config`** (done): §8 item 10 — `streamconfig` checks inside
+   `SubjectTransformConfig`, `RePublish` and `StreamSource` literals (a port of the
+   server's `ValidateMapping`/`NewSubjectTransform`), the bucket republish cycle in
+   `kvconfig`, `Fields.Lits`, and indexed assignments masking their field. The corpus
+   added 15 lines: 13 in nats-server tests that assert the same rejection with the same
+   error text, and 2 in a nack mapping-test fixture; nothing on non-test code, and the
+   masking change removed no existing line.
+8. Later, separate designs: migration rewrites (legacy → `jetstream`), orbit.go
    recommendation rules, orbit.go API rules.
 
 ## 7. Code conventions for the implementing repository
@@ -788,23 +824,21 @@ corpus-driven corrections live.
    driver with a report, not `go fix`. Design when `legacyjs` numbers exist.
 7. Which orbit.go APIs warrant rules of their own (§1, item 3). Survey after the corpus
    run.
-8. Legacy `js.Subscribe*(subj, nats.Bind(stream, consumer))` with a non-empty constant
-   subject: the subject is never used as a subscription subject, only compared for
-   equality with the consumer's `FilterSubject` (`js.go` `processConsInfo`), so a
-   wildcard or unrelated constant fails with `ErrSubjectMismatch` whenever a filter is
-   set. eventing-natss ships `PullSubscribe(".>", ..., nats.Bind(...))`. A rule "pass
-   `""` with `Bind`" would catch it; `subject` deliberately skips these calls.
+8. ~~Legacy `js.Subscribe*(subj, nats.Bind(stream, consumer))` with a non-empty
+   constant subject.~~ Won't do (2026-09-24): `processConsInfo` (`js.go`) fails only when
+   `ccfg.FilterSubject != "" && subj != ccfg.FilterSubject`, so the outcome depends on
+   the bound consumer's server-side config; an unfiltered or multi-filter consumer
+   accepts any subject, eventing-natss's `.>` included. `subject` keeps skipping these
+   calls.
 9. `headerkey` near-miss: an unknown `Nats-*` key within a small edit distance of a
    known header (`Nats-TTLSeconds` for `Nats-TTL`, seen in go-choria). The table lookup
    is exact today; a Levenshtein threshold of 2-3 over the known set would flag it
    without touching user headers that share only the prefix.
-10. Config rules inside nested literals: `Mirror`/`Sources` subject transforms,
-    `SubjectTransform` and `RePublish` (source validity, destination mapping via the
-    server's `ValidateMapping`, republish cycles). nats-server test cases to derive
-    from live in `server/jetstream_test.go` (overlapping transform sources, invalid
-    transform source `events.>.*`, bad `{{split(3,1)}}` destination, republish cycle).
-    `CompositeFields` already descends one level; the port of `ValidateMapping` is the
-    work.
+10. ~~Config rules inside nested literals: `Mirror`/`Sources` subject transforms,
+    `SubjectTransform` and `RePublish`.~~ Done in `nested-config` (§3.1 `streamconfig`
+    items 14–15, `kvconfig` item 4). Not ported: duplicate sources and duplicate durable
+    consumers (`composeIName`/`composeCName`), and the `FilterSubject` a KeyValue source
+    can never carry (nats.go adds a transform to every KeyValue source).
 11. Discarded `Fetch` batch: `_, err := c.Fetch(10)` sends a pull request whose messages
     are delivered to nobody and redelivered after `AckWait`. Same shape as `handle`,
     different consequence. The corpus has 57 such sites, all in tests, about half of them
