@@ -12,7 +12,7 @@ enabled with `-<rule>.enable`.
 | [`duration`](#duration) | on | no | report untyped constants passed where nats.go expects a time.Duration |
 | [`handle`](#handle) | on | no | report a discarded ConsumeContext, MessagesContext, watcher or micro.Service |
 | [`headerkey`](#headerkey) | on | yes | report header keys that differ only in case from a NATS header |
-| [`kvconfig`](#kvconfig) | on | no | report KV bucket names, history limits and keys nats.go rejects |
+| [`kvconfig`](#kvconfig) | on | no | report KV bucket names, history limits, keys and republish cycles that fail |
 | [`msgloop`](#msgloop) | on | no | report a Next loop that never exits and a Fetch batch ranged without Error |
 | [`nilheader`](#nilheader) | on | no | report header writes on a nats.Msg literal that has no Header |
 | [`pubasync`](#pubasync) | on | no | report a discarded PubAckFuture with no async error path in the package |
@@ -142,14 +142,18 @@ already imports, or with the correctly cased literal.
 
 ## kvconfig
 
-report KV bucket names, history limits and keys nats.go rejects
+report KV bucket names, history limits, keys and republish cycles that fail
 
 Default: on. Fix: no.
 
-The checks are the ones in nats.go's jetstream/kv.go and jetstream/object.go
-(bucketValid, keyValid, searchKeyValid, KeyValueMaxHistory) and fire only on
-constants, so a report is a guaranteed ErrInvalidBucketName,
-ErrInvalidStoreName, ErrHistoryTooLarge or ErrInvalidKey at runtime.
+The client-side checks are the ones in nats.go's jetstream/kv.go and
+jetstream/object.go (bucketValid, keyValid, searchKeyValid,
+KeyValueMaxHistory), so a report is a guaranteed ErrInvalidBucketName,
+ErrInvalidStoreName, ErrHistoryTooLarge or ErrInvalidKey at runtime. One
+check is the server's: nats.go gives a bucket's stream the subject
+$KV.<bucket>.> and passes RePublish through, so a republish destination
+that overlaps that subject forms a cycle and CreateKeyValue fails. Every
+check fires only on constants.
 
 ```go
 js.KeyValue(ctx, "my.bucket")   // ErrInvalidBucketName
@@ -235,15 +239,29 @@ report stream configurations the server rejects
 
 Default: on. Fix: no.
 
-Every check mirrors one in nats-server's checkStreamCfgLocked and fires only
-when the involved fields are constants in the same composite literal, so a
-report is a guaranteed runtime error, reported at the literal instead of as
-a JetStreamError from CreateStream.
+Every check mirrors one in nats-server's checkStreamCfgLocked (or, for a
+stream source with both Domain and External, nats.go's convertDomain) and
+fires only when the involved fields are constants, so a report is a
+guaranteed runtime error, reported at the literal instead of as a
+JetStreamError from CreateStream.
+
+SubjectTransformConfig, RePublish and StreamSource literals are checked
+wherever they are written, including inside KeyValue configs: transform
+sources that are not valid subjects, transform destinations the server's
+ValidateMapping rejects, republish mappings it cannot build, a filter
+subject combined with subject transforms, overlapping transform sources,
+and invalid durable-source consumers. Inside a stream config the sourced
+and mirrored stream names and republish cycles are checked as well.
 
 ```go
 jetstream.StreamConfig{
 	Name:     "ORDERS",
 	Subjects: []string{"orders.>", "orders.new"}, // overlap: rejected
+}
+
+jetstream.SubjectTransformConfig{
+	Source:      "events.*",
+	Destination: "events.{{split(3,1)}}", // no third wildcard: rejected
 }
 ```
 

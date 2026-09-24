@@ -18,6 +18,7 @@ package streamconfig
 import (
 	"fmt"
 	"go/ast"
+	"slices"
 	"strings"
 	"time"
 
@@ -30,14 +31,28 @@ import (
 
 const doc = `streamconfig: report stream configurations the server rejects
 
-Every check mirrors one in nats-server's checkStreamCfgLocked and fires only
-when the involved fields are constants in the same composite literal, so a
-report is a guaranteed runtime error, reported at the literal instead of as
-a JetStreamError from CreateStream.
+Every check mirrors one in nats-server's checkStreamCfgLocked (or, for a
+stream source with both Domain and External, nats.go's convertDomain) and
+fires only when the involved fields are constants, so a report is a
+guaranteed runtime error, reported at the literal instead of as a
+JetStreamError from CreateStream.
+
+SubjectTransformConfig, RePublish and StreamSource literals are checked
+wherever they are written, including inside KeyValue configs: transform
+sources that are not valid subjects, transform destinations the server's
+ValidateMapping rejects, republish mappings it cannot build, a filter
+subject combined with subject transforms, overlapping transform sources,
+and invalid durable-source consumers. Inside a stream config the sourced
+and mirrored stream names and republish cycles are checked as well.
 
 	jetstream.StreamConfig{
 		Name:     "ORDERS",
 		Subjects: []string{"orders.>", "orders.new"}, // overlap: rejected
+	}
+
+	jetstream.SubjectTransformConfig{
+		Source:      "events.*",
+		Destination: "events.{{split(3,1)}}", // no third wildcard: rejected
 	}`
 
 const name = "streamconfig"
@@ -52,6 +67,14 @@ var Analyzer = &analysis.Analyzer{
 var (
 	jsConfig     = natsapi.TypeRef{Pkg: natsapi.JetStream, Name: "StreamConfig"}
 	legacyConfig = natsapi.TypeRef{Pkg: natsapi.Core, Name: "StreamConfig"}
+	jsKV         = natsapi.TypeRef{Pkg: natsapi.JetStream, Name: "KeyValueConfig"}
+	legacyKV     = natsapi.TypeRef{Pkg: natsapi.Core, Name: "KeyValueConfig"}
+
+	transformRefs = []natsapi.TypeRef{{Pkg: natsapi.JetStream, Name: "SubjectTransformConfig"}, {Pkg: natsapi.Core, Name: "SubjectTransformConfig"}}
+	republishRefs = []natsapi.TypeRef{{Pkg: natsapi.JetStream, Name: "RePublish"}, {Pkg: natsapi.Core, Name: "RePublish"}}
+	sourceRefs    = []natsapi.TypeRef{{Pkg: natsapi.JetStream, Name: "StreamSource"}, {Pkg: natsapi.Core, Name: "StreamSource"}}
+	consumerRefs  = []natsapi.TypeRef{{Pkg: natsapi.JetStream, Name: "StreamConsumerSource"}}
+	nestedRefs    = slices.Concat(transformRefs, republishRefs, sourceRefs)
 )
 
 const (
@@ -68,22 +91,25 @@ func run(pass *analysis.Pass) (any, error) {
 			return false
 		}
 		lit := n.(*ast.CompositeLit)
-		fields, matched, ok := natsapi.CompositeFields(pass.TypesInfo, lit, jsConfig, legacyConfig)
-		if !ok {
-			return true
-		}
-		c := natsapi.NewFields(pass.TypesInfo, fields, matched == legacyConfig, nil, masker.Masked(stack))
-		report := func(msg string) {
+		reportAt := func(at ast.Node, msg string) {
 			pass.Report(analysis.Diagnostic{
-				Pos:      lit.Pos(),
-				End:      lit.End(),
+				Pos:      at.Pos(),
+				End:      at.End(),
 				Category: name,
 				Message:  "stream config: " + msg,
 			})
 		}
-		for _, check := range checks {
-			check(c, report)
+		v := &nested{info: pass.TypesInfo, stack: stack, report: reportAt}
+		if fields, matched, ok := natsapi.CompositeFields(pass.TypesInfo, lit, jsConfig, legacyConfig); ok {
+			c := natsapi.NewFields(pass.TypesInfo, fields, matched == legacyConfig, nil, masker.Masked(stack))
+			report := func(msg string) { reportAt(lit, msg) }
+			for _, check := range checks {
+				check(c, report)
+			}
+			v.checkParent(c)
+			return true
 		}
+		v.checkLiteral(lit, masker)
 		return true
 	})
 	return nil, nil

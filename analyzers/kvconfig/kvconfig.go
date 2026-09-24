@@ -12,7 +12,8 @@
 // limitations under the License.
 
 // Package kvconfig reports KeyValue and ObjectStore bucket names, history
-// limits and keys that nats.go rejects client-side.
+// limits and keys that nats.go rejects client-side, and KeyValue republish
+// cycles the server rejects.
 package kvconfig
 
 import (
@@ -26,12 +27,16 @@ import (
 	"github.com/piotrpio/natsvet/internal/natsapi"
 )
 
-const doc = `kvconfig: report KV bucket names, history limits and keys nats.go rejects
+const doc = `kvconfig: report KV bucket names, history limits, keys and republish cycles that fail
 
-The checks are the ones in nats.go's jetstream/kv.go and jetstream/object.go
-(bucketValid, keyValid, searchKeyValid, KeyValueMaxHistory) and fire only on
-constants, so a report is a guaranteed ErrInvalidBucketName,
-ErrInvalidStoreName, ErrHistoryTooLarge or ErrInvalidKey at runtime.
+The client-side checks are the ones in nats.go's jetstream/kv.go and
+jetstream/object.go (bucketValid, keyValid, searchKeyValid,
+KeyValueMaxHistory), so a report is a guaranteed ErrInvalidBucketName,
+ErrInvalidStoreName, ErrHistoryTooLarge or ErrInvalidKey at runtime. One
+check is the server's: nats.go gives a bucket's stream the subject
+$KV.<bucket>.> and passes RePublish through, so a republish destination
+that overlaps that subject forms a cycle and CreateKeyValue fails. Every
+check fires only on constants.
 
 	js.KeyValue(ctx, "my.bucket")   // ErrInvalidBucketName
 	kv.Put(ctx, "user name", data)  // ErrInvalidKey
@@ -47,6 +52,11 @@ var Analyzer = &analysis.Analyzer{
 }
 
 const maxHistory = 64
+
+var republishTypes = []natsapi.TypeRef{
+	{Pkg: natsapi.JetStream, Name: "RePublish"},
+	{Pkg: natsapi.Core, Name: "RePublish"},
+}
 
 var configTypes = []natsapi.TypeRef{
 	{Pkg: natsapi.JetStream, Name: "KeyValueConfig"},
@@ -117,7 +127,7 @@ func run(pass *analysis.Pass) (any, error) {
 }
 
 func checkConfig(pass *analysis.Pass, lit *ast.CompositeLit, assigned map[string]bool, report func(ast.Node, string)) {
-	fields, _, ok := natsapi.CompositeFields(pass.TypesInfo, lit, configTypes...)
+	fields, matched, ok := natsapi.CompositeFields(pass.TypesInfo, lit, configTypes...)
 	if !ok {
 		return
 	}
@@ -129,6 +139,36 @@ func checkConfig(pass *analysis.Pass, lit *ast.CompositeLit, assigned map[string
 	}
 	if h, ok := c.Int("History"); ok && h > maxHistory {
 		report(lit, fmt.Sprintf("KV history %d exceeds the maximum of %d", h, maxHistory))
+	}
+	if matched.Name == "KeyValueConfig" {
+		checkRePublishCycle(pass, c, report)
+	}
+}
+
+// checkRePublishCycle mirrors nats-server's republish cycle check on the
+// stream nats.go builds for a bucket: RePublish is passed through and the
+// stream subject is $KV.<bucket>.> unless the bucket mirrors another.
+func checkRePublishCycle(pass *analysis.Pass, c *natsapi.Fields, report func(ast.Node, string)) {
+	b, ok := c.Str("Bucket")
+	if !ok || !natsapi.BucketValid(b) || c.Ptr("Mirror") != natsapi.PtrNil {
+		return
+	}
+	lits, _ := c.Lits("RePublish")
+	if len(lits) != 1 {
+		return
+	}
+	fields, _, ok := natsapi.CompositeFields(pass.TypesInfo, lits[0], republishTypes...)
+	if !ok {
+		return
+	}
+	rc := natsapi.NewFields(pass.TypesInfo, fields, false, nil, c.Assigned)
+	_, srcOK := rc.Str("Source")
+	dest, destOK := rc.Str("Destination")
+	if !srcOK || !destOK || dest == "" {
+		return
+	}
+	if subj := "$KV." + b + ".>"; natsapi.SubjectsCollide(dest, subj) {
+		report(lits[0], fmt.Sprintf("republish destination %q forms a cycle with the bucket subject %q; the server rejects the bucket", dest, subj))
 	}
 }
 

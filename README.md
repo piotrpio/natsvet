@@ -92,8 +92,8 @@ cannot drift from what the tool does.
 | Rule | Default | Fix | Reports |
 |------|---------|-----|---------|
 | `consumerconfig` | on | no | a `ConsumerConfig` literal the server rejects in `checkConsumerCfg`: overlapping or empty filters, deliver policy vs start options, heartbeat or flow control on a pull consumer, priority policy without groups, and more |
-| `streamconfig` | on | no | a `StreamConfig` literal the server rejects in `checkStreamCfgLocked`: invalid or overlapping subjects, replicas > 5, windows under 100ms, mirror with subjects or sources, and more |
-| `kvconfig` | on | no | a KV or object store bucket name, history, or key that nats.go rejects client-side (`ErrInvalidBucketName`, `ErrHistoryTooLarge`, `ErrInvalidKey`) |
+| `streamconfig` | on | no | a `StreamConfig` literal the server rejects in `checkStreamCfgLocked`: invalid or overlapping subjects, replicas > 5, windows under 100ms, mirror with subjects or sources, invalid subject transforms and republish mappings, republish cycles, and more |
+| `kvconfig` | on | no | a KV or object store bucket name, history, or key that nats.go rejects client-side (`ErrInvalidBucketName`, `ErrHistoryTooLarge`, `ErrInvalidKey`), or a KV `RePublish` that cycles into the bucket |
 | `duration` | on | no | an untyped constant where nats.go expects a `time.Duration` (`nc.Request("s", nil, 5)` waits 5ns, `AckWait: 30` acks in 30ns); arguments, fields, field assignments and option types like `nats.MaxWait` |
 | `subject` | on | no | a constant subject nats.go or the server rejects (empty, whitespace, empty token, misplaced `>`), a publish to a subject with a wildcard token (delivered literally), or a queue group with whitespace |
 | `ctxdeadline` | on | no | `context.Background()`/`context.TODO()` passed directly to `FlushWithContext` (`ErrNoDeadlineContext`), `RequestWithContext`/`NextMsgWithContext` (may block forever), or `nats.Context(...)` on legacy `Fetch` |

@@ -19,6 +19,8 @@ var _ = nats.KeyValueConfig{Bucket: "bad bucket", History: 65} // want `invalid 
 
 var _ = nats.ObjectStoreConfig{Bucket: "ok_bucket"}
 
+var _ = &nats.KeyValueConfig{Bucket: "orders", RePublish: &nats.RePublish{Source: "$KV.orders.>", Destination: "$KV.orders.copy.>"}} // want `republish destination "\$KV\.orders\.copy\.>" forms a cycle with the bucket subject "\$KV\.orders\.>"`
+
 func legacy(js nats.JetStreamContext, kv nats.KeyValue) {
 	_, _ = js.KeyValue("a.b")           // want `invalid bucket name "a.b"`
 	_, _ = js.ObjectStore("a b")        // want `invalid bucket name "a b"`

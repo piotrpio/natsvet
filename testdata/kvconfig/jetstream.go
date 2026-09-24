@@ -38,6 +38,15 @@ var _ = []jetstream.KeyValueConfig{
 
 var _ = &jetstream.ObjectStoreConfig{Bucket: "files/2024"} // want `invalid bucket name "files/2024"`
 
+// Republish cycles against the bucket subject.
+var _ = []jetstream.KeyValueConfig{
+	{Bucket: "orders", RePublish: &jetstream.RePublish{Destination: ">"}}, // want `republish destination ">" forms a cycle with the bucket subject "\$KV\.orders\.>"; the server rejects the bucket`
+	{Bucket: "orders", RePublish: &jetstream.RePublish{Source: "$KV.orders.>", Destination: "feed.orders.>"}},
+	{Bucket: "orders", Mirror: &jetstream.StreamSource{Name: "orders"}, RePublish: &jetstream.RePublish{Destination: ">"}},
+	{Bucket: name, RePublish: &jetstream.RePublish{Destination: ">"}},
+	{Bucket: "orders", RePublish: &jetstream.RePublish{Source: "$KV.orders.>"}},
+}
+
 func lookups(js jetstream.JetStream) {
 	_, _ = js.KeyValue(ctx, "my bucket") // want `invalid bucket name "my bucket"`
 	_ = js.DeleteKeyValue(ctx, "a.b")    // want `invalid bucket name "a.b"`
