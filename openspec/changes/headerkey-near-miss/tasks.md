@@ -1,0 +1,20 @@
+## 1. nats-server header list
+
+- [ ] 1.1 Write `internal/tablegen` tests for `ServerHeaders` over a fixture tree (a header literal in a `.go` file, one in a `_test.go` file, one in a comment, a `Nats-Expected-` prefix, a duplicate across files, a subdirectory) and for the generated `server_headers_table.go` source; verify they fail before the code exists
+- [ ] 1.2 Implement `ServerHeaders` (`go/parser` over non-test `.go` files under `<dir>/server`, `^Nats-[A-Za-z0-9-]+$` without a trailing `-`, sorted, unique) and its generator, and add `-server` (default `$NATS_SERVER_DIR`, then `$HOME/.cache/natsvet-corpus/nats-server`; skip with a message when absent) and `-only server` to `tablegen/cmd`; update the `go:generate` line; verify `go test ./internal/tablegen/` passes and `make generate` writes `internal/natsapi/server_headers_table.go` with 46 names at v2.14.7, including `Nats-UpTo-Sequence` and `Nats-Num-Pending`, excluding `Nats-Expected-` and `Nats-Batch-`
+- [ ] 1.3 Add the check to `scripts/corpus.sh`: after the clone loop, run `tablegen -only server -server "$CORPUS_DIR/nats-server"` into a temporary directory and `diff` against the committed table, failing with the diff; verify `make corpus` passes, then add a bogus name to the committed table, verify it fails naming it, and restore; also verify `make generate` with `NATS_SERVER_DIR` pointing at a missing directory and no corpus clone leaves the table unchanged and reports the skip
+- [ ] 1.4 Write tests for the merged lookup (the spec's "Server-only header" and "Header in both sources" scenarios, `KnownHeaders()` sorted and unique, every `headers_table.go` key present), then merge `serverHeaders` into the `Header` index and add `KnownHeaders()`; verify `go test ./internal/natsapi/` passes and `TestTablesUpToDate` is unaffected
+
+## 2. headerkey key sites and near-miss
+
+- [ ] 2.1 Add `testdata/headerkey` files for the new sites and checks: range-key comparisons (both operand orders, `!=`, `switch`, reassigned key, plain map), `nats.Header{…}` literal keys, a server-only header, the near-miss and glued scenarios (including the silent `Nats-Has-More`, `Nats-X`, `Data-TTL`, `Nats-TTL-Seconds`, `Nats-Scheduler`), each with `// want` or silent, and `.golden` files for the case fixes at the new sites; verify `go test ./analyzers/headerkey/` fails on the new expectations only
+- [ ] 2.2 Refactor the analyzer so all key sites (calls, index, header literals, range-key comparisons and switch cases with the never-assigned check) feed one key check; verify the case-diagnostic scenarios and their golden files pass
+- [ ] 2.3 Add the near-miss check (case-insensitive Levenshtein ≤ 2 with lexical tie-break, then longest known prefix followed by a letter or digit), with no fix; verify the whole headerkey analysistest passes
+- [ ] 2.4 Rewrite the `headerkey` Doc string to cover nats-server headers, the new sites and near-misses; verify `make generate` updates `docs/rules.md` and `TestRulesDocUpToDate` passes
+
+## 3. Corpus, docs and gates
+
+- [ ] 3.1 Run `make corpus` (outside the sandbox); triage the new lines into `scripts/corpus.expected` — natscli `cli/stream_command.go:1291` and go-choria `aagent/watchers/gossipwatcher/gossip.go:197` as `TP` with what is wrong and a paste-ready issue draft, anything else triaged with a reason; verify a second `make corpus` passes
+- [ ] 3.2 Run `make plugin`; verify the golangci-lint plugin output still matches `natsvet` over `testdata`
+- [ ] 3.3 Update `docs/design.md` §3.1 `headerkey` (known set, sites, near-miss shapes) and close §8 item 9 with the corrected analysis (distance 7, the two shapes, the corpus table), coordinating with any uncommitted `docs/design.md` edits in the working tree rather than overwriting them; verify the README rule table still matches `Analyzers()`
+- [ ] 3.4 Run `gofmt -l .`, `go vet ./...`, `staticcheck ./...`, `misspell -locale US .`, `make lint` and `make test` (with the testdata download step); verify all pass with no output from gofmt and misspell
