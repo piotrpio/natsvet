@@ -31,17 +31,25 @@ func EnclosingFuncBody(stack []ast.Node) *ast.BlockStmt {
 }
 
 // AssignedFields returns the names of every selector that an assignment or
-// increment statement in body writes to (x.Field = ..., x.Field += ...,
-// x.Field++), on any receiver. A config literal in such a function may be
-// completed or changed after it is written, so those fields are unknown
-// for every literal in the function.
+// increment statement in body writes to (x.Field = ..., x.Field[i] = ...,
+// x.Field += ..., x.Field++), on any receiver. A config literal in such a
+// function may be completed or changed after it is written, so those
+// fields are unknown for every literal in the function.
 func AssignedFields(body *ast.BlockStmt) map[string]bool {
 	if body == nil {
 		return nil
 	}
 	fields := make(map[string]bool)
 	add := func(e ast.Expr) {
-		if sel, ok := ast.Unparen(e).(*ast.SelectorExpr); ok {
+		e = ast.Unparen(e)
+		for {
+			ix, ok := e.(*ast.IndexExpr)
+			if !ok {
+				break
+			}
+			e = ast.Unparen(ix.X)
+		}
+		if sel, ok := e.(*ast.SelectorExpr); ok {
 			fields[sel.Sel.Name] = true
 		}
 	}

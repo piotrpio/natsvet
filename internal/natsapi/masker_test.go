@@ -31,6 +31,9 @@ type Config struct {
 	Name           string
 	DeliverSubject string
 	Heartbeat      int
+	Subjects       []string
+	Meta           map[string]string
+	Grid           [][]string
 }
 
 type JS struct{}
@@ -182,6 +185,19 @@ func storedInField(js JS) {
 	js.SubmitV(h.c)
 }
 
+func indexedBeforeUse(js JS) {
+	cfg := Config{Subjects: []string{"a", "a"}}
+	cfg.Subjects[1] = "b"
+	js.SubmitV(cfg)
+}
+
+func indexChainBeforeUse(js JS) {
+	cfg := Config{Name: "a"}
+	cfg.Grid[0][1] = "x"
+	cfg.Meta["k"] = "v"
+	js.SubmitV(cfg)
+}
+
 var pkgLevel = Config{Name: "a.b"}
 `
 
@@ -209,7 +225,9 @@ func TestMasker(t *testing.T) {
 		"loggedThenFixed":      "DeliverSubject",   // the logger takes any; the submission comes after the fix
 		"genericByValue":       "",                 // instantiated generic parameter is concretely typed
 		"storedInField":        "DeliverSubject,c", // not bound to an identifier: whole function (h.c counts)
-		"pkgLevel":             "-",                // no enclosing function
+		"indexedBeforeUse":     "Subjects",         // an element assignment changes the field
+		"indexChainBeforeUse":  "Grid,Meta",
+		"pkgLevel":             "-", // no enclosing function
 	}
 	var stack []ast.Node
 	seen := make(map[string]bool)

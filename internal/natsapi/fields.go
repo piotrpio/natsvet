@@ -15,6 +15,7 @@ package natsapi
 
 import (
 	"go/ast"
+	"go/token"
 	"go/types"
 	"time"
 )
@@ -188,6 +189,52 @@ func (f *Fields) Enum(field, zero string) (string, bool) {
 		return zero, true
 	}
 	return "", false
+}
+
+// Lits returns the composite literals a nested field holds: the literal
+// itself for T{...} or &T{...}, or the element literals of a slice
+// literal. complete is false when the field is unknown or any value is not
+// a literal; an absent or nil field is complete and holds none.
+func (f *Fields) Lits(field string) (lits []*ast.CompositeLit, complete bool) {
+	e, present, known := f.value(field)
+	if !known {
+		return nil, false
+	}
+	if !present {
+		return nil, true
+	}
+	if id, ok := ast.Unparen(e).(*ast.Ident); ok && id.Name == "nil" && f.Info.Types[id].IsNil() {
+		return nil, true
+	}
+	lit := CompositeOf(e)
+	if lit == nil {
+		return nil, false
+	}
+	switch f.Info.TypeOf(lit).Underlying().(type) {
+	case *types.Slice, *types.Array:
+	default:
+		return []*ast.CompositeLit{lit}, true
+	}
+	complete = true
+	for _, elt := range lit.Elts {
+		if l := CompositeOf(elt); l != nil {
+			lits = append(lits, l)
+		} else {
+			complete = false
+		}
+	}
+	return lits, complete
+}
+
+// CompositeOf returns the composite literal e denotes directly or through
+// & and parentheses, or nil.
+func CompositeOf(e ast.Expr) *ast.CompositeLit {
+	e = ast.Unparen(e)
+	if u, ok := e.(*ast.UnaryExpr); ok && u.Op == token.AND {
+		e = ast.Unparen(u.X)
+	}
+	l, _ := e.(*ast.CompositeLit)
+	return l
 }
 
 // PtrState classifies a pointer-typed field's value.
