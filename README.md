@@ -120,6 +120,7 @@ package:
 natsvet migrate plan ./...                    # JSON plan
 natsvet migrate plan -format markdown ./...   # the same plan as a guide
 natsvet migrate skill                         # instructions for an agent following the plan
+natsvet help migrate                          # usage and flags
 ```
 
 The plan classifies every legacy site as mechanical (exact replacement and byte-offset
