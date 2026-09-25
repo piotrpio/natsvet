@@ -103,7 +103,7 @@ cannot drift from what the tool does.
 | `handle` | on | no | a `ConsumeContext`, `MessagesContext`, `KeyWatcher`, `ObjectWatcher` or `micro.Service` assigned to `_` or dropped; nothing can ever `Stop` or `Drain` it |
 | `msgloop` | on | no | a `for { msg, err := it.Next(); if err != nil { continue } }` that never exits once the iterator is stopped, and a `Fetch` batch ranged over without `Error()` |
 | `pubasync` | on | no | a `PublishAsync` future assigned to `_` in a package that neither installs `WithPublishAsyncErrHandler` nor awaits `PublishAsyncComplete`; publish errors are lost |
-| `headerkey` | on | yes | a header key that differs only in case from a NATS header (`nats-msg-id` vs `Nats-Msg-Id`); nats.go header lookups are case-sensitive, so the lookup silently fails |
+| `headerkey` | on | yes | a header key that differs only in case from a NATS header (`nats-msg-id` vs `Nats-Msg-Id`), so the lookup silently fails, or that is one slip from one (`Nats-TTLSeconds` for `Nats-TTL`, no fix) |
 | `legacyjs` | opt-in | no | every use of the legacy `nats.JetStreamContext` / `nats.KeyValue` / `nats.ObjectStore` API, as an inventory for migrating to the `jetstream` package |
 
 Every default-on rule fires only on constants and direct calls, and every rule that

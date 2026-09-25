@@ -11,7 +11,7 @@ enabled with `-<rule>.enable`.
 | [`drain`](#drain) | on | no | report a Drain that Close or process exit cuts short |
 | [`duration`](#duration) | on | no | report untyped constants passed where nats.go expects a time.Duration |
 | [`handle`](#handle) | on | no | report a discarded ConsumeContext, MessagesContext, watcher or micro.Service |
-| [`headerkey`](#headerkey) | on | yes | report header keys that differ only in case from a NATS header |
+| [`headerkey`](#headerkey) | on | yes | report header keys that miss a NATS header by case or by a slip |
 | [`kvconfig`](#kvconfig) | on | no | report KV bucket names, history limits, keys and republish cycles that fail |
 | [`msgloop`](#msgloop) | on | no | report a Next loop that never exits and a Fetch batch ranged without Error |
 | [`nilheader`](#nilheader) | on | no | report header writes on a nats.Msg literal that has no Header |
@@ -123,22 +123,32 @@ defer cc.Drain()
 
 ## headerkey
 
-report header keys that differ only in case from a NATS header
+report header keys that miss a NATS header by case or by a slip
 
 Default: on. Fix: yes.
 
 nats.go headers are case-preserving and lookups are exact map lookups, unlike
-net/http which canonicalizes keys, so msg.Header.Get("nats-msg-id") returns ""
-on a message that carries Nats-Msg-Id, and Set("nats-msg-id", v) publishes a
-header the server does not recognize.
+net/http which canonicalizes keys, and nats-server matches header names byte
+for byte, so msg.Header.Get("nats-msg-id") returns "" on a message that
+carries Nats-Msg-Id, and Set("nats-msg-id", v) publishes a header the server
+does not recognize. The known headers are the ones nats.go defines constants
+for and the ones nats-server uses.
+
+A key that starts with Nats- but is not a NATS header is reported too when it
+is within two edits of one, or is one with letters or digits appended: the
+server ignores it and lookups never match. Keys are checked as arguments to
+the Header methods, as index and literal keys of a Header, and where they are
+compared with the key of a range over a Header.
 
 ```go
-msg.Header.Get("nats-msg-id")      // always ""
+msg.Header.Get("nats-msg-id")            // always ""
 msg.Header.Get(jetstream.MsgIDHeader)
+msg.Header.Add("Nats-TTLSeconds", "30s") // ignored: the header is Nats-TTL
 ```
 
-The fix replaces the key with the constant from the nats.go package the file
-already imports, or with the correctly cased literal.
+The fix replaces a miscased key with the constant from the nats.go package
+the file already imports, or with the correctly cased literal. A near-miss
+has no fix.
 
 ## kvconfig
 

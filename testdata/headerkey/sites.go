@@ -1,0 +1,76 @@
+// Copyright 2026 Synadia Communications Inc.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package headerkey
+
+import (
+	"strings"
+
+	"github.com/nats-io/nats.go"
+)
+
+func rangeKeys(msg *nats.Msg, h nats.Header, plain map[string][]string) {
+	for k := range msg.Header {
+		if k == "nats-msg-id" { // want `header key "nats-msg-id" does not match "Nats-Msg-Id"; nats.go header lookups are case-sensitive`
+			continue
+		}
+	}
+	for k, vs := range h {
+		if "nats-stream" != k { // want `header key "nats-stream" does not match "Nats-Stream"; nats.go header lookups are case-sensitive`
+			_ = vs
+		}
+	}
+	for k := range h {
+		switch k {
+		case "Nats-Subject", "nats-stream": // want `header key "nats-stream" does not match "Nats-Stream"; nats.go header lookups are case-sensitive`
+		}
+	}
+	for k := range h {
+		if k == "nats-num-pending" { // want `header key "nats-num-pending" does not match "Nats-Num-Pending"; nats.go header lookups are case-sensitive`
+			continue
+		}
+	}
+	for k := range h {
+		k = strings.ToLower(k)
+		if k == "nats-msg-id" {
+			continue
+		}
+	}
+	for _, v := range h {
+		if v[0] == "nats-msg-id" {
+			continue
+		}
+	}
+	for k := range plain {
+		if k == "nats-msg-id" {
+			continue
+		}
+	}
+	var other string
+	for k := range h {
+		if other == "nats-msg-id" || k == "Nats-Msg-Id" {
+			continue
+		}
+	}
+}
+
+func headerLiterals() {
+	_ = nats.Header{"nats-msg-id": []string{"1"}} // want `header key "nats-msg-id" does not match "Nats-Msg-Id"; nats.go header lookups are case-sensitive`
+	_ = nats.Header{"Nats-Msg-Id": []string{"1"}, "X-Custom": nil}
+	_ = map[string][]string{"nats-msg-id": {"1"}}
+}
+
+func serverOnly(h nats.Header) {
+	_ = h.Get("nats-num-pending") // want `header key "nats-num-pending" does not match "Nats-Num-Pending"; nats.go header lookups are case-sensitive`
+	_ = h.Get("Nats-UpTo-Sequence")
+}
