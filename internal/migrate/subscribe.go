@@ -390,6 +390,8 @@ func (p *planner) buildSubscribe(c *classified, rw *rewriter, sc *subCall, h *ha
 	fields := slices.Clone(sc.fields)
 	if sc.form != formPull && !sc.ordered {
 		if ch[patAck] == "none" {
+			// The answer overrides an ack option (nats.AckAll, nats.AckExplicit).
+			fields = slices.DeleteFunc(fields, func(f cfgField) bool { return f.name == "AckPolicy" })
 			fields = append(fields, cfgField{name: "AckPolicy", value: "jetstream.AckNonePolicy"})
 		}
 		if sc.form == formChan && ch[patChanMaxAck] == "keep" {

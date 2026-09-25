@@ -531,3 +531,25 @@ func TestHelperHandle(t *testing.T) {
 		}
 	}
 }
+
+// An ack answer of none replaces the ack policy an option set, so the
+// config literal names AckPolicy once.
+func TestAckNoneOverridesAckOption(t *testing.T) {
+	base := planFor(t, nil, "./migrate/scenarios")
+	all := siteWith(t, base, scenarios, "nats.AckAll()")
+	for _, tc := range []struct{ choice, want string }{
+		{"after-handler", "AckPolicy: jetstream.AckAllPolicy"},
+		{"none", "AckPolicy: jetstream.AckNonePolicy"},
+	} {
+		t.Run(tc.choice, func(t *testing.T) {
+			plan := planFor(t, []Answer{
+				{Pattern: patSubscribeTarget, Scope: "site:" + all.ID, Choice: "pull"},
+				{Pattern: patAck, Scope: "site:" + all.ID, Choice: tc.choice},
+			}, "./migrate/scenarios")
+			s := siteWith(t, plan, scenarios, "nats.AckAll()")
+			if n := strings.Count(s.After, "AckPolicy:"); n != 1 || !strings.Contains(s.After, tc.want) || !parses(s.After) {
+				t.Errorf("after names AckPolicy %d times, want once as %q:\n%s", n, tc.want, s.After)
+			}
+		})
+	}
+}

@@ -4,20 +4,20 @@ Read `natsvet migrate skill` before acting on this plan. Plan schema version 1; 
 
 ## Summary
 
-- Legacy uses: 120 in 89 sites
-- Mechanical: 66, guided: 16, decision: 6, unmapped: 1, skipped: 0
-- Components: 26, steps: 123
+- Legacy uses: 124 in 91 sites
+- Mechanical: 67, guided: 16, decision: 7, unmapped: 1, skipped: 0
+- Components: 27, steps: 127
 
 ## Pending decisions
 
 Ask the user each question, record the answer in natsvet-migrate.json, and plan again.
 
-- **ack** (module, 4 sites): legacy wrapped the handler as h(m); m.Ack(), so acking after it returns keeps the behavior. Options: after-handler, explicit, none. Default: **after-handler**.
+- **ack** (module, 5 sites): legacy wrapped the handler as h(m); m.Ack(), so acking after it returns keeps the behavior. Options: after-handler, explicit, none. Default: **after-handler**.
 - **channel-max-ack-pending** (module, 1 site): legacy set MaxAckPending to the channel capacity. Options: keep, server-default. Default: **keep**.
 - **shared-handler** (module, 1 site): the handler also serves a core subscription, which keeps receiving *nats.Msg. Options: split, adapter. Default: **split**.
-- **subscribe-target** (module, 6 sites): the jetstream package is built around pull consumers, which is why teams migrate. Options: pull, push, defer. Default: **pull**.
+- **subscribe-target** (module, 7 sites): the jetstream package is built around pull consumers, which is why teams migrate. Options: pull, push, defer. Default: **pull**.
 - **subscribe-target** (site:migrate/app/subscribe.go:41:14, 1 site): the subscription binds an existing consumer, which legacy Subscribe requires to be a push consumer; pull would fail until the consumer is recreated. Options: pull, push, defer. Default: **push**.
-- **component** (module, 26 components): skip keeps code that must stay on the legacy API (tests of the legacy API, compatibility shims) out of the steps; the steps assume migrate until answered. Options: migrate, skip. Default: **migrate**.
+- **component** (module, 27 components): skip keeps code that must stay on the legacy API (tests of the legacy API, compatibility shims) out of the steps; the steps assume migrate until answered. Options: migrate, skip. Default: **migrate**.
 
 ## Component migrate/app/app.go:32:2
 
@@ -2845,9 +2845,89 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 rename each sibling to its legacy name: jsNew → js.
 
 
+## Component migrate/scenarios/scenarios.go:122:31
+
+Handles: js (migrate/scenarios/scenarios.go:122:31).
+
+
+### Step S116 (add-handle, machine edits)
+
+create the jetstream siblings jsNew next to the legacy handles.
+
+
+#### Site migrate/scenarios/scenarios.go:122:31: mechanical
+
+declare jsNew jetstream.JetStream next to js. See jetstream/MIGRATION.md#initialization-options.
+
+Before:
+
+```go
+js nats.JetStreamContext
+```
+
+After:
+
+```go
+js nats.JetStreamContext, jsNew jetstream.JetStream
+```
+
+
+### Step S117 (site)
+
+Subscribe becomes a pull consumer's Consume.
+
+
+#### Site migrate/scenarios/scenarios.go:123:12: decision
+
+Subscribe becomes a pull consumer's Consume. See jetstream/MIGRATION.md#replacing-jssubscribe.
+
+Before:
+
+```go
+_, err := js.Subscribe("orders.all", func(m *nats.Msg) {}, nats.Durable("all"), nats.AckAll())
+```
+
+- Note: the consumer is created with CreateOrUpdateConsumer, as MIGRATION.md does: legacy used an existing durable as it was when the options it set were compatible, CreateOrUpdateConsumer applies the code's full configuration
+- Note: legacy Unsubscribe and Drain deleted a durable consumer the library had created; the jetstream package keeps it
+- Decision **subscribe-target** pending, default **pull**: the jetstream package is built around pull consumers, which is why teams migrate.
+  - pull: a pull consumer: Consume for callbacks, Messages for sync and channel forms
+  - push: a push consumer (Subscribe and QueueSubscribe only): CreateOrUpdatePushConsumer, or PushConsumer when bound
+  - defer: keep the legacy subscription for now; the component keeps its legacy handle
+- Decision **ack** pending, default **after-handler**: legacy wrapped the handler as h(m); m.Ack(), so acking after it returns keeps the behavior.
+  - after-handler: ack after the handler returns, as the legacy wrapper did
+  - explicit: ack explicitly on each handler path
+  - none: AckNonePolicy: no acks at all
+
+### Step S118 (remove-legacy)
+
+remove the legacy handles, their roots and the values threaded into them. Waits on: migrate/scenarios/scenarios.go:123:12.
+
+
+#### Site migrate/scenarios/scenarios.go:122:31: mechanical
+
+declare jsNew jetstream.JetStream next to js. See jetstream/MIGRATION.md#initialization-options.
+
+Before:
+
+```go
+js nats.JetStreamContext
+```
+
+After:
+
+```go
+js nats.JetStreamContext, jsNew jetstream.JetStream
+```
+
+
+### Step S119 (rename)
+
+rename each sibling to its legacy name: jsNew → js. Waits on: migrate/scenarios/scenarios.go:123:12.
+
+
 ## Sites outside components
 
-### Step S116 (site)
+### Step S120 (site)
 
 declare a jetstream.JetStream sibling next to the nats.JetStreamContext handle.
 
@@ -2870,7 +2950,7 @@ nats.JetStreamContext
 
 - Fact: an unnamed JetStreamContext declaration; name it to thread a jetstream.JetStream next to it
 
-### Step S117 (site)
+### Step S121 (site)
 
 retype nats.KeyValueEntry as jetstream.KeyValueEntry.
 
@@ -2893,7 +2973,7 @@ Template:
 
 - Fact: the method belongs to an implementation of nats.KeyWatcher, whose signature would no longer match; migrate the implementation with the interface (regenerate a mock from jetstream.KeyWatcher)
 
-### Step S118 (site)
+### Step S122 (site)
 
 retype nats.KeyWatcher as jetstream.KeyWatcher.
 
@@ -2916,7 +2996,7 @@ jetstream.KeyWatcher
 
 - Fact: the method belongs to an implementation of nats.KeyWatcher, whose signature would no longer match; migrate the implementation with the interface (regenerate a mock from jetstream.KeyWatcher)
 
-### Step S119 (site)
+### Step S123 (site)
 
 nats.JetStreamContext becomes jetstream.JetStream.
 
@@ -2939,7 +3019,7 @@ js, _ := v.(jetstream.JetStream)
 
 - Fact: nats.JetStreamContext handles migrate through their declarations and roots; this expression makes one the planner does not thread
 
-### Step S120 (site)
+### Step S124 (site)
 
 declare a jetstream.JetStream sibling next to the nats.JetStreamContext handle.
 
@@ -2962,7 +3042,7 @@ nats.JetStreamContext
 
 - Fact: an unnamed JetStreamContext declaration; name it to thread a jetstream.JetStream next to it
 
-### Step S121 (site)
+### Step S125 (site)
 
 declare a jetstream.KeyValue sibling next to the nats.KeyValue handle.
 
@@ -2985,7 +3065,7 @@ nats.KeyValue
 
 - Fact: an unnamed KeyValue declaration; name it to thread a jetstream.KeyValue next to it
 
-### Step S122 (site)
+### Step S126 (site)
 
 Conn.JetStream creates a handle the planner cannot thread.
 
@@ -3017,3 +3097,4 @@ Not needed to finish the migration:
 - migrate/app/subscribe.go:127:12 (stream-name): the stream is likely "ORDERS", created at migrate/app/app.go:44; name it instead of looking it up
 - migrate/scenarios/scenarios.go:72:14 (stream-name): the stream is likely "ORDERS", created at migrate/app/app.go:44; name it instead of looking it up
 - migrate/scenarios/scenarios.go:82:12 (stream-name): replace the runtime StreamNameBySubject lookup with the stream's name
+- migrate/scenarios/scenarios.go:123:12 (stream-name): the stream is likely "ORDERS", created at migrate/app/app.go:44; name it instead of looking it up

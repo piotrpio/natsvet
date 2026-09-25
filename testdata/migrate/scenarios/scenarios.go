@@ -117,3 +117,9 @@ func Policy(ctx context.Context, js nats.JetStreamContext, explicit bool) error 
 	_, err := js.AddConsumer("ORDERS", &nats.ConsumerConfig{Durable: "p", AckPolicy: ack})
 	return err
 }
+
+// All acks cumulatively and relied on the legacy auto-ack wrapper.
+func All(ctx context.Context, js nats.JetStreamContext) error {
+	_, err := js.Subscribe("orders.all", func(m *nats.Msg) {}, nats.Durable("all"), nats.AckAll())
+	return err
+}

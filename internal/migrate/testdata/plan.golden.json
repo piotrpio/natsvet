@@ -39,7 +39,7 @@
     },
     {
       "file": "migrate/scenarios/scenarios.go",
-      "sha256": "2a33c4c4d94ffb3dd3693010f38aab38aacf058962dd3a70c62bf4d3eb83466f"
+      "sha256": "f64eb22083b004b5b36bbb4427a0cb1a069a99e032dd3d8cf7304c5dbe07cfa0"
     },
     {
       "file": "migrate/worker/worker.go",
@@ -47,11 +47,11 @@
     }
   ],
   "counts": {
-    "legacy_uses": 120,
-    "sites": 89,
-    "mechanical": 66,
+    "legacy_uses": 124,
+    "sites": 91,
+    "mechanical": 67,
     "guided": 16,
-    "decision": 6,
+    "decision": 7,
     "unmapped": 1,
     "skipped": 0
   },
@@ -59,7 +59,7 @@
     {
       "pattern": "ack",
       "scope": "module",
-      "sites": 4,
+      "sites": 5,
       "options": [
         "after-handler",
         "explicit",
@@ -93,7 +93,7 @@
     {
       "pattern": "subscribe-target",
       "scope": "module",
-      "sites": 6,
+      "sites": 7,
       "options": [
         "pull",
         "push",
@@ -117,7 +117,7 @@
     {
       "pattern": "component",
       "scope": "module",
-      "sites": 26,
+      "sites": 27,
       "options": [
         "migrate",
         "skip"
@@ -1651,7 +1651,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "2a33c4c4d94ffb3dd3693010f38aab38aacf058962dd3a70c62bf4d3eb83466f"
+          "sha256": "f64eb22083b004b5b36bbb4427a0cb1a069a99e032dd3d8cf7304c5dbe07cfa0"
         }
       ],
       "edits": [
@@ -1682,7 +1682,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "de233d1d5291d51def1d6dd298863c36f8b9d84127d35883d93945542ff05789"
+          "sha256": "287432baf11ce884b5125186dc114acc5d716a4b04ba777c2338516d33f8fd75"
         }
       ],
       "edits": [
@@ -1712,7 +1712,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "da1774e57a26ea64656f5249f14a92d32efabe70ab537bcc629e1494db53001c"
+          "sha256": "8231a596574a01887053ad32c02bce7592bd356b96caaa6eec09b38b8504c63f"
         }
       ],
       "edits": [
@@ -1733,7 +1733,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "b31cffe2ef273c9243b051449f1078af94d910be141cc10362b368f7837a83b5"
+          "sha256": "d773ed57539abdc3ec77418ceb53910a42904c6106f788a81bd5163544ba150f"
         }
       ],
       "edits": [
@@ -1763,7 +1763,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "eff48d60d083e74b1415cc0326c6c8793e772a8c56b1297fe662851b5a7878b4"
+          "sha256": "dffcf617d91212b25720949130390751bd0862e04e44a6af3f68687304e98b4b"
         }
       ],
       "edits": [
@@ -1788,7 +1788,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "9c3ec7a4d8263736bec9ec7ed46ed502b8c6748cd5212113c856d66b3bd4e5af"
+          "sha256": "a25d48da9ae4ee3d7858c99e8350cba6a46865b2c06c3ce9bab098e48192df29"
         }
       ],
       "edits": [
@@ -1818,7 +1818,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "bd2923e434f9ff15ac84bfa64f6b311da1be02e61834cd616e2b80384767364e"
+          "sha256": "fc7ca68e7723ea7904f160e6fb5def7913d1ccc1c94c7778ec9c2e973fd5daca"
         }
       ],
       "edits": [
@@ -1839,7 +1839,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "c16d01d20912eb815bb9faa554723e3a0713f4f9f13e441de1a7b76a6fc8ee61"
+          "sha256": "1c76861def24e42f2a2da18b927051e40fb1df871c9ce9731eb2f43403a0f29c"
         }
       ],
       "edits": [
@@ -1869,7 +1869,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "2e837ae5b7f08c36bdba9d19d6b25e612e4ac5957fdfd44cac00fd8cbdf13e56"
+          "sha256": "43abd8550b0f53859f0227da9e36be8efac6a71b30ca2d6d7af2f8d71958e2db"
         }
       ],
       "edits": [
@@ -1893,7 +1893,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "dd6279bb0869cec9de8cc80cbcbd1033f9a501f40dd5475c41d3d6e33cb8a088"
+          "sha256": "12f0f7af67829a112f97de4bba7c1370263cdee0c485d40c92e6a530d2422b83"
         }
       ],
       "edits": [
@@ -1917,7 +1917,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "fef53530a0eac939d6e5102e3ee4702670de2ca39aec79c8ad3642b6332bf8f4"
+          "sha256": "7795a42d14f4ccbcccf3445f626349f36ba46564e49a226c523ce10861d5f768"
         }
       ],
       "edits": [
@@ -1938,7 +1938,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "421c973db91f2577822a5cc4efd495fe669c7ef51ada45d6f0d9cc21a7b0a31c"
+          "sha256": "dbe1286b4b6b564c08d84d7ed8f0fda1d166065b96587307ea72643be45be85c"
         }
       ],
       "edits": [
@@ -1968,7 +1968,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "caba25af61dd9f0c81fa605006807098e42a2ccc43ff9b4c2fe19a4ad841f50d"
+          "sha256": "7bf1a22a7e8300acc2fed2cbf1e136a1fa36a26665dcae4a53a16a17a1ae330d"
         }
       ],
       "edits": [
@@ -2025,7 +2025,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "112d5eb6fd0f32474c84bd5a831197bffc479638de6c168c233048bf4e428dcc"
+          "sha256": "d817db55b8dce85de41956f7821113d3cb4ba27700b830efed717b223a576545"
         }
       ],
       "edits": [
@@ -2049,7 +2049,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "8addd4169189ea23989d2a398cbcf6b095c2a01e17093da6e34111f78739b8bf"
+          "sha256": "e83e99b9b5de4429024555233705c8f6f4efdd1373aead1ca68794df6af20252"
         }
       ],
       "edits": [
@@ -2073,7 +2073,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "1f013ef6e4d87de10142d68f63b4bd796d48aca5ff2bc7c394e9a12687c78a20"
+          "sha256": "75dae7c8d1605abd50c6fdb967237ab3674deaaca4d260762fae330d9f3fc870"
         }
       ],
       "edits": [
@@ -2094,7 +2094,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "a3d743bde536bc2938cc1629dcc753045006d3207f71a0766646d2afd3f950f0"
+          "sha256": "e1c8fcad8ae3e5e214b9f27acc2e9a3c5ef21d441cb8dac0fe0a2c77d72c3425"
         }
       ],
       "edits": [
@@ -2124,7 +2124,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "0d30c258935214af67c97e9f2120d77d1070dfbbc5ae009724ac53148f035275"
+          "sha256": "17b745eff3011b615edfc16aa446329453cf509328277af654cc4400d5ac7f46"
         }
       ],
       "edits": [
@@ -2148,7 +2148,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "b216b3aa37bb9be2c12289205f0a20b87b04769ee88aef1f8ea113b3ead92031"
+          "sha256": "6cd28e64924c18fbaf484a694c50492fd5aaec98ee7433b82aed5df2044eb9f2"
         }
       ],
       "edits": [
@@ -2172,7 +2172,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "9df03444616fbaaa48bb4336480afa1b277aaad4e9fa3329b932fd58d667cfcb"
+          "sha256": "42c9a56c372e9a199f7c39ab3da82f5f6731f7bad84f381364ba532c7f2d94cb"
         }
       ],
       "edits": [
@@ -2193,7 +2193,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "f00b9124c39ccb6f52936bedf74426b009f926c6c8560705cc64a950315767b7"
+          "sha256": "269d9326fd98af93f84b31aa13580505d33d1660fae52c006e4ca54079121d5f"
         }
       ],
       "edits": [
@@ -2223,7 +2223,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "0218582f13c47bdb39d86bf2f6429f59c268a2ad202ffbd945222dcdf0082171"
+          "sha256": "0b553e49c35a9ccb6388db1a8dd3d98a7e5aab7a65f3b3d2c172ae78b59c739b"
         }
       ],
       "edits": [
@@ -2247,7 +2247,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "a251716216aec7c00e1745bf675293c06cf7239581a7c665a7233c09d67040af"
+          "sha256": "60f2b34d992a84fbe7468a9b68b7d8a80a4e19e4a4da577ecdf8c4c01b5318bc"
         }
       ],
       "edits": [
@@ -2283,7 +2283,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "7fd82521f925e7333f6b5e61a7029352aa40758659c983887d0ff876cd7e1475"
+          "sha256": "d27af1e4597178a16506fad559bc657d7efb22dba14eaf50902d15a051c517ee"
         }
       ],
       "edits": [
@@ -2304,7 +2304,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "1fb21cca60e5294de358cd879a2fec2f5535923e8a075bc12bcc4792bb7bfb8a"
+          "sha256": "25533befa49f3d7158aefdd846ae971baf623e233a5ee1601f67bb9ec3c8c757"
         }
       ],
       "edits": [
@@ -2334,7 +2334,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "7bed2c848ab3cd2fa33f5dba58ecb3059fbdb01aa91da6cc023193bec523a602"
+          "sha256": "105bc1272ece4cbead810c222d44dadaa05957b343c69b533973733624b60ba2"
         }
       ],
       "edits": [
@@ -2358,7 +2358,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "43914c51f824e7893f52e0f1b19460c7d0c7b50d3f6294026c10bbd3594fa5ba"
+          "sha256": "178c333d86d6d5762dc3c9fbb55c16fe6ae7fe102fdc0f5fa14dcae4b97d40b6"
         }
       ],
       "edits": [
@@ -2394,7 +2394,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "960a44f76bd8f0e3fc4f23f8e9559d2b34379519cac7720b0669edefe83c5e35"
+          "sha256": "9e03bb72f8529232f826e723452cbf14b0436af3dc58ae708cf14b208dbbf5aa"
         }
       ],
       "edits": [
@@ -2415,7 +2415,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "2cf7c27718dc1f7374f4b27ce58b935d7ef11394dd6714ec2bb12053dd18c0e8"
+          "sha256": "88f379330b616b379574b4a9073a83eeb12b3ac3208e62a44e7c8d0160bc19a0"
         }
       ],
       "edits": [
@@ -2451,7 +2451,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "0160b7dcf3f4f6494d246f34ed9a3c97f35fb795c6e8bc67780e3c100f223c0d"
+          "sha256": "221328bbba314c56c04a51dfea9949aca55e384f30f4b67be25dc996a8357f20"
         }
       ],
       "edits": [
@@ -2509,7 +2509,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "c8b963854572d306564b74d6626f90001b2b8d6923142498fed11ee0b8301b49"
+          "sha256": "5119ac54702b2951f82d81d3b1515029e3709c414155a3bb84c8ef305f0efbfd"
         }
       ],
       "edits": [
@@ -2539,7 +2539,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "8bf5a0057c27f9fae8831e2d1f5f845b32bd2ee2cd479846afd4f4d701d011b9"
+          "sha256": "239f55eb2f265d06642fae0582689e9d75a8c49b39a248574873c806b150b8a5"
         }
       ],
       "edits": [
@@ -2564,7 +2564,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "b836a8fe038b8d3f6ac37278961209fe5fe02a292be3aabcdc4a895e5b94bdf9"
+          "sha256": "7dc7a0b99e35c3e6cf0841672e320efd0a0aa27e65afe748ebc9bf247fb5c735"
         }
       ],
       "edits": [
@@ -2609,7 +2609,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "336da46eb923e005856aad88b607e902e291e0723ff8db420b25a5a9e58770ce"
+          "sha256": "f9c1779b32a979f56a2709b4df5444e54861f5a673c92922b112cf5a628cf51e"
         }
       ],
       "edits": [
@@ -2651,7 +2651,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "d392e3c0a42fbfd4b396af82d0af3d93cc3096a98b859b2bd25e9cae3428224e"
+          "sha256": "21cf420b22b98e51541fc9fe0e0e536d8cdc8cfbdab7b060056ef2846fdfbf5e"
         }
       ],
       "edits": [
@@ -2677,7 +2677,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "726c0dbafb844d3512a105f578407f304d54f60f0d6a8402b28fddbe7a7f5c6f"
+          "sha256": "dd4147082e5f63d0e51c496690ca2853dcfcc34b053b29f302666ac86af2850d"
         }
       ],
       "edits": [
@@ -2713,7 +2713,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "27ec48694154ccd5d181dfdae331034a4758cf069611260c72050bbdbeb0109f"
+          "sha256": "99f128161fa959b0f230920e18e3b02fc03c055d9df346eccbf630724645ddfd"
         }
       ],
       "edits": [
@@ -2734,7 +2734,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "68b357dbcb920dc0491b5fde7e7c90fbcb6bacdf91b752abae3b5a6d1b068cd2"
+          "sha256": "5fa7724b6f13a4e19a160898fc1713a7e80e081781b14a3abfe89e11d776865a"
         }
       ],
       "edits": [
@@ -2764,7 +2764,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "9c52f3251a1c73f904aad16dc27373dc44fde73a0846056ee8915af22697203e"
+          "sha256": "2022b1ecf00c32e7d9439c3f6922b3533e4bec33397323dba3ef80655a10996e"
         }
       ],
       "edits": [
@@ -2790,7 +2790,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "2d13734fe6c85840fc064b572501105fd283ed28258efffc50787f16fd08fa1a"
+          "sha256": "de0ae558b9f6d6817f00b4a4210e5b64e04d039681438f7c98b7ac7a403c0d37"
         }
       ],
       "edits": [
@@ -2826,7 +2826,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "dc62dba7dadd457559ce40b73285a6d1c2d1fe54baefb4539b635d016c4f8996"
+          "sha256": "dd6cca6fab48cb906fac92c1df633254e230fd47e291ec35353b52d61761d753"
         }
       ],
       "edits": [
@@ -2847,7 +2847,7 @@
       "expect": [
         {
           "file": "migrate/scenarios/scenarios.go",
-          "sha256": "b4e4f52d59c0333eab12b2c21e5a1ac92df64f79a101631307c7ff98f4d4b780"
+          "sha256": "301ed951db0ba00bd4d68c511faded607d594a0c3b19d92d559da8ca34664cc1"
         }
       ],
       "edits": [
@@ -2867,38 +2867,59 @@
     },
     {
       "id": "S116",
-      "kind": "site",
-      "summary": "declare a jetstream.JetStream sibling next to the nats.JetStreamContext handle",
-      "machine": false,
+      "component": "migrate/scenarios/scenarios.go:122:31",
+      "kind": "add-handle",
+      "summary": "create the jetstream siblings jsNew next to the legacy handles",
+      "machine": true,
       "sites": [
-        "migrate/legacyonly/legacyonly.go:18:29"
+        "migrate/scenarios/scenarios.go:122:31"
+      ],
+      "expect": [
+        {
+          "file": "migrate/scenarios/scenarios.go",
+          "sha256": "4d1fdf621fb83c3060108edd350312ec1d101d8376938f128c01332cc2cd8ec1"
+        }
+      ],
+      "edits": [
+        {
+          "file": "migrate/scenarios/scenarios.go",
+          "start": 4304,
+          "end": 4304,
+          "new": ", jsNew jetstream.JetStream"
+        }
       ]
     },
     {
       "id": "S117",
+      "component": "migrate/scenarios/scenarios.go:122:31",
       "kind": "site",
-      "summary": "retype nats.KeyValueEntry as jetstream.KeyValueEntry",
+      "summary": "Subscribe becomes a pull consumer's Consume",
       "machine": false,
       "sites": [
-        "migrate/scenarios/corpus.go:58:26"
+        "migrate/scenarios/scenarios.go:123:12"
       ]
     },
     {
       "id": "S118",
-      "kind": "site",
-      "summary": "retype nats.KeyWatcher as jetstream.KeyWatcher",
+      "component": "migrate/scenarios/scenarios.go:122:31",
+      "kind": "remove-legacy",
+      "summary": "remove the legacy handles, their roots and the values threaded into them",
       "machine": false,
       "sites": [
-        "migrate/scenarios/corpus.go:61:42"
+        "migrate/scenarios/scenarios.go:122:31"
+      ],
+      "waits_on": [
+        "migrate/scenarios/scenarios.go:123:12"
       ]
     },
     {
       "id": "S119",
-      "kind": "site",
-      "summary": "nats.JetStreamContext becomes jetstream.JetStream",
+      "component": "migrate/scenarios/scenarios.go:122:31",
+      "kind": "rename",
+      "summary": "rename each sibling to its legacy name: jsNew → js",
       "machine": false,
-      "sites": [
-        "migrate/scenarios/corpus.go:65:14"
+      "waits_on": [
+        "migrate/scenarios/scenarios.go:123:12"
       ]
     },
     {
@@ -2907,11 +2928,47 @@
       "summary": "declare a jetstream.JetStream sibling next to the nats.JetStreamContext handle",
       "machine": false,
       "sites": [
-        "migrate/scenarios/corpus.go:70:21"
+        "migrate/legacyonly/legacyonly.go:18:29"
       ]
     },
     {
       "id": "S121",
+      "kind": "site",
+      "summary": "retype nats.KeyValueEntry as jetstream.KeyValueEntry",
+      "machine": false,
+      "sites": [
+        "migrate/scenarios/corpus.go:58:26"
+      ]
+    },
+    {
+      "id": "S122",
+      "kind": "site",
+      "summary": "retype nats.KeyWatcher as jetstream.KeyWatcher",
+      "machine": false,
+      "sites": [
+        "migrate/scenarios/corpus.go:61:42"
+      ]
+    },
+    {
+      "id": "S123",
+      "kind": "site",
+      "summary": "nats.JetStreamContext becomes jetstream.JetStream",
+      "machine": false,
+      "sites": [
+        "migrate/scenarios/corpus.go:65:14"
+      ]
+    },
+    {
+      "id": "S124",
+      "kind": "site",
+      "summary": "declare a jetstream.JetStream sibling next to the nats.JetStreamContext handle",
+      "machine": false,
+      "sites": [
+        "migrate/scenarios/corpus.go:70:21"
+      ]
+    },
+    {
+      "id": "S125",
       "kind": "site",
       "summary": "declare a jetstream.KeyValue sibling next to the nats.KeyValue handle",
       "machine": false,
@@ -2920,7 +2977,7 @@
       ]
     },
     {
-      "id": "S122",
+      "id": "S126",
       "kind": "site",
       "summary": "Conn.JetStream creates a handle the planner cannot thread",
       "machine": false,
@@ -3418,6 +3475,22 @@
         "migrate/scenarios/scenarios.go:113:9",
         "migrate/scenarios/scenarios.go:115:9",
         "migrate/scenarios/scenarios.go:117:12"
+      ]
+    },
+    {
+      "id": "migrate/scenarios/scenarios.go:122:31",
+      "handles": [
+        "js (migrate/scenarios/scenarios.go:122:31)"
+      ],
+      "steps": [
+        "S116",
+        "S117",
+        "S118",
+        "S119"
+      ],
+      "sites": [
+        "migrate/scenarios/scenarios.go:122:31",
+        "migrate/scenarios/scenarios.go:123:12"
       ]
     }
   ],
@@ -4225,7 +4298,7 @@
         "an unnamed JetStreamContext declaration; name it to thread a jetstream.JetStream next to it"
       ],
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S116"
+      "step": "S120"
     },
     {
       "id": "migrate/legacyonly/legacyonly.go:19:9",
@@ -4248,7 +4321,7 @@
         "UseLegacyDurableConsumers: the jetstream package always uses the consumer create API; there is no legacy mode"
       ],
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S122"
+      "step": "S126"
     },
     {
       "id": "migrate/legacytests/legacy_test.go:27:13",
@@ -4562,7 +4635,7 @@
         "the method belongs to an implementation of nats.KeyWatcher, whose signature would no longer match; migrate the implementation with the interface (regenerate a mock from jetstream.KeyWatcher)"
       ],
       "reference": "jetstream/MIGRATION.md#keyvalue-store",
-      "step": "S117"
+      "step": "S121"
     },
     {
       "id": "migrate/scenarios/corpus.go:61:24",
@@ -4600,7 +4673,7 @@
         "the method belongs to an implementation of nats.KeyWatcher, whose signature would no longer match; migrate the implementation with the interface (regenerate a mock from jetstream.KeyWatcher)"
       ],
       "reference": "jetstream/MIGRATION.md#keyvalue-store",
-      "step": "S118"
+      "step": "S122"
     },
     {
       "id": "migrate/scenarios/corpus.go:65:14",
@@ -4620,7 +4693,7 @@
         "nats.JetStreamContext handles migrate through their declarations and roots; this expression makes one the planner does not thread"
       ],
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S119"
+      "step": "S123"
     },
     {
       "id": "migrate/scenarios/corpus.go:66:9",
@@ -4661,7 +4734,7 @@
         "an unnamed JetStreamContext declaration; name it to thread a jetstream.JetStream next to it"
       ],
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S120"
+      "step": "S124"
     },
     {
       "id": "migrate/scenarios/corpus.go:72:16",
@@ -4723,7 +4796,7 @@
         "an unnamed KeyValue declaration; name it to thread a jetstream.KeyValue next to it"
       ],
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S121"
+      "step": "S125"
     },
     {
       "id": "migrate/scenarios/corpus.go:85:13",
@@ -5416,6 +5489,93 @@
       "step": "S113"
     },
     {
+      "id": "migrate/scenarios/scenarios.go:122:31",
+      "component": "migrate/scenarios/scenarios.go:122:31",
+      "position": {
+        "file": "migrate/scenarios/scenarios.go",
+        "line": 122,
+        "column": 31
+      },
+      "symbols": [
+        "nats.JetStreamContext"
+      ],
+      "class": "mechanical",
+      "summary": "declare jsNew jetstream.JetStream next to js",
+      "before": "js nats.JetStreamContext",
+      "after": "js nats.JetStreamContext, jsNew jetstream.JetStream",
+      "reference": "jetstream/MIGRATION.md#initialization-options",
+      "step": "S116"
+    },
+    {
+      "id": "migrate/scenarios/scenarios.go:123:12",
+      "component": "migrate/scenarios/scenarios.go:122:31",
+      "position": {
+        "file": "migrate/scenarios/scenarios.go",
+        "line": 123,
+        "column": 12
+      },
+      "symbols": [
+        "nats.JetStream.Subscribe",
+        "nats.Durable",
+        "nats.AckAll"
+      ],
+      "class": "decision",
+      "summary": "Subscribe becomes a pull consumer's Consume",
+      "before": "_, err := js.Subscribe(\"orders.all\", func(m *nats.Msg) {}, nats.Durable(\"all\"), nats.AckAll())",
+      "notes": [
+        "the consumer is created with CreateOrUpdateConsumer, as MIGRATION.md does: legacy used an existing durable as it was when the options it set were compatible, CreateOrUpdateConsumer applies the code's full configuration",
+        "legacy Unsubscribe and Drain deleted a durable consumer the library had created; the jetstream package keeps it"
+      ],
+      "decisions": [
+        {
+          "pattern": "subscribe-target",
+          "options": [
+            {
+              "id": "pull",
+              "summary": "a pull consumer: Consume for callbacks, Messages for sync and channel forms",
+              "after": "_, err := func() (jetstream.ConsumeContext, error) {\n\t\tstream, err := jsNew.StreamNameBySubject(ctx, \"orders.all\")\n\t\tif err != nil {\n\t\t\treturn nil, err\n\t\t}\n\t\tcons, err := jsNew.CreateOrUpdateConsumer(ctx, stream, jetstream.ConsumerConfig{\n\t\t\tDurable: \"all\",\n\t\t\tAckPolicy: jetstream.AckAllPolicy,\n\t\t\tFilterSubject: \"orders.all\",\n\t\t})\n\t\tif err != nil {\n\t\t\treturn nil, err\n\t\t}\n\t\thandler := func(m jetstream.Msg) {}\n\t\treturn cons.Consume(func(msg jetstream.Msg) {\n\t\t\thandler(msg)\n\t\t\tmsg.Ack()\n\t\t})\n\t}()"
+            },
+            {
+              "id": "push",
+              "summary": "a push consumer (Subscribe and QueueSubscribe only): CreateOrUpdatePushConsumer, or PushConsumer when bound",
+              "after": "_, err := func() (jetstream.ConsumeContext, error) {\n\t\tstream, err := jsNew.StreamNameBySubject(ctx, \"orders.all\")\n\t\tif err != nil {\n\t\t\treturn nil, err\n\t\t}\n\t\tcons, err := jsNew.CreateOrUpdatePushConsumer(ctx, stream, jetstream.ConsumerConfig{\n\t\t\tDurable: \"all\",\n\t\t\tAckPolicy: jetstream.AckAllPolicy,\n\t\t\tDeliverSubject: nats.NewInbox(),\n\t\t\tFilterSubject: \"orders.all\",\n\t\t})\n\t\tif err != nil {\n\t\t\treturn nil, err\n\t\t}\n\t\thandler := func(m jetstream.Msg) {}\n\t\treturn cons.Consume(func(msg jetstream.Msg) {\n\t\t\thandler(msg)\n\t\t\tmsg.Ack()\n\t\t})\n\t}()"
+            },
+            {
+              "id": "defer",
+              "summary": "keep the legacy subscription for now; the component keeps its legacy handle",
+              "after": "guided: deferred by the subscribe-target answer: the subscription stays on the legacy API for now, and the component keeps its legacy handle"
+            }
+          ],
+          "default": "pull",
+          "reason": "the jetstream package is built around pull consumers, which is why teams migrate"
+        },
+        {
+          "pattern": "ack",
+          "options": [
+            {
+              "id": "after-handler",
+              "summary": "ack after the handler returns, as the legacy wrapper did",
+              "after": "_, err := func() (jetstream.ConsumeContext, error) {\n\t\tstream, err := jsNew.StreamNameBySubject(ctx, \"orders.all\")\n\t\tif err != nil {\n\t\t\treturn nil, err\n\t\t}\n\t\tcons, err := jsNew.CreateOrUpdateConsumer(ctx, stream, jetstream.ConsumerConfig{\n\t\t\tDurable: \"all\",\n\t\t\tAckPolicy: jetstream.AckAllPolicy,\n\t\t\tFilterSubject: \"orders.all\",\n\t\t})\n\t\tif err != nil {\n\t\t\treturn nil, err\n\t\t}\n\t\thandler := func(m jetstream.Msg) {}\n\t\treturn cons.Consume(func(msg jetstream.Msg) {\n\t\t\thandler(msg)\n\t\t\tmsg.Ack()\n\t\t})\n\t}()"
+            },
+            {
+              "id": "explicit",
+              "summary": "ack explicitly on each handler path",
+              "after": "guided: ack explicitly: add msg.Ack() (or Nak, Term) on each path of the handler"
+            },
+            {
+              "id": "none",
+              "summary": "AckNonePolicy: no acks at all",
+              "after": "_, err := func() (jetstream.ConsumeContext, error) {\n\t\tstream, err := jsNew.StreamNameBySubject(ctx, \"orders.all\")\n\t\tif err != nil {\n\t\t\treturn nil, err\n\t\t}\n\t\tcons, err := jsNew.CreateOrUpdateConsumer(ctx, stream, jetstream.ConsumerConfig{\n\t\t\tDurable: \"all\",\n\t\t\tAckPolicy: jetstream.AckNonePolicy,\n\t\t\tFilterSubject: \"orders.all\",\n\t\t})\n\t\tif err != nil {\n\t\t\treturn nil, err\n\t\t}\n\t\treturn cons.Consume(func(m jetstream.Msg) {})\n\t}()"
+            }
+          ],
+          "default": "after-handler",
+          "reason": "legacy wrapped the handler as h(m); m.Ack(), so acking after it returns keeps the behavior"
+        }
+      ],
+      "reference": "jetstream/MIGRATION.md#replacing-jssubscribe",
+      "step": "S117"
+    },
+    {
       "id": "migrate/worker/worker.go:21:12",
       "component": "migrate/app/app.go:32:2",
       "position": {
@@ -5524,6 +5684,16 @@
       "site": "migrate/scenarios/scenarios.go:82:12",
       "kind": "stream-name",
       "summary": "replace the runtime StreamNameBySubject lookup with the stream's name"
+    },
+    {
+      "site": "migrate/scenarios/scenarios.go:123:12",
+      "kind": "stream-name",
+      "summary": "the stream is likely \"ORDERS\", created at migrate/app/app.go:44; name it instead of looking it up",
+      "candidate": {
+        "file": "migrate/app/app.go",
+        "line": 44,
+        "column": 31
+      }
     }
   ]
 }
