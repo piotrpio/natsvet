@@ -8,6 +8,7 @@ build:
 
 testdata-deps:
 	cd testdata && $(GO) mod download
+	cd testdata/migrate-old && $(GO) mod download
 
 test: testdata-deps
 	$(GO) test ./...

@@ -66,6 +66,17 @@ func KnownHeaders() []string {
 	return slices.Clone(headersKnown)
 }
 
+// LegacySymbols returns every key of the legacy JetStream table ("Type",
+// "Func", "Type.Method"), sorted.
+func LegacySymbols() []string {
+	keys := make([]string, 0, len(legacySymbols))
+	for k := range legacySymbols {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	return keys
+}
+
 // LegacySymbol returns the qualified name of obj ("nats.JetStreamContext",
 // "nats.JetStream.Publish", "nats.Durable") when it belongs to the legacy
 // JetStream API of package nats.
