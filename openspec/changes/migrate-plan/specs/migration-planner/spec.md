@@ -24,7 +24,7 @@
 - **THEN** it prints the skill, and the skill names the same schema version the binary's plans carry
 
 ### Requirement: Every legacy use belongs to exactly one site
-The planner SHALL find every identifier whose object is a legacy JetStream symbol, as `legacyjs` does (`natsapi.LegacySymbol`), and every use of a `*nats.Msg` parameter inside a handler passed to a legacy subscribe call, and SHALL assign each to exactly one site: the smallest expression or declaration that is rewritten as a unit (a call with its arguments and options, a composite literal, a type in a declaration, a field access). The number of legacy identifiers in the plan SHALL equal the number of `legacyjs` diagnostics for the same packages.
+The planner SHALL find every identifier whose object is a legacy JetStream symbol, as `legacyjs` does (`natsapi.LegacySymbol`), and every use of a `*nats.Msg` parameter inside a handler passed to a legacy subscribe call, and SHALL assign each to exactly one site: the smallest expression or declaration that is rewritten as a unit (a call with its arguments and options, a composite literal, a type in a declaration, a field access). The number of legacy identifiers in the plan SHALL equal the number of `legacyjs` diagnostics for the same packages. Constants of legacy types (`nats.AckExplicitPolicy`) and error values the jetstream package declares under the same name (`nats.ErrKeyNotFound`) are not legacy identifiers, but the planner SHALL rewrite them with the values they belong to: a constant with the values it is used with, an error value with the call whose error it is compared against; they are not counted as legacy identifiers.
 
 #### Scenario: Agreement with legacyjs
 - **WHEN** the plan and `natsvet -legacyjs.enable` run over the same packages
@@ -33,6 +33,10 @@ The planner SHALL find every identifier whose object is a legacy JetStream symbo
 #### Scenario: One call, one site
 - **WHEN** code calls `js.Subscribe("orders.new", h, nats.Durable("w"), nats.DeliverNew())`
 - **THEN** the call, its options and its handler binding form one site, not four
+
+#### Scenario: Error value follows its call
+- **WHEN** code has `e, err := kv.Get(k); if errors.Is(err, nats.ErrKeyNotFound) { … }`
+- **THEN** `nats.ErrKeyNotFound` becomes `jetstream.ErrKeyNotFound` in the same step as the `Get` call
 
 #### Scenario: Core NATS is not a site
 - **WHEN** code calls `nc.Subscribe("x", func(m *nats.Msg) { _ = m.Data })`
@@ -80,11 +84,11 @@ Every `jetstream` call that takes a `context.Context` SHALL receive, in order of
 - **THEN** the replacement passes `context.Background()` and the site is still mechanical
 
 ### Requirement: Mechanical sites carry their exact replacement
-A site whose every input is known SHALL be classified mechanical and carry its replacement, including at least: the handle (`nc.JetStream(opts...)` to `jetstream.New`, `NewWithDomain` for `nats.Domain`, `NewWithAPIPrefix` for `nats.APIPrefix`, `WithPublishAsyncErrHandler`, `WithPublishAsyncMaxPending`); stream and consumer management with pointer arguments made values (`AddStream` to `CreateStream`, `UpdateStream`, `DeleteStream`, `AddConsumer` to `CreateConsumer` — legacy `AddConsumer` returns the existing consumer for an identical config and fails with `ErrConsumerNameAlreadyInUse` otherwise, which is create semantics, not create-or-update — `UpdateConsumer`, `DeleteConsumer`); calls that need a stream handle (`PurgeStream`, `StreamInfo`, `GetMsg`, `GetLastMsg`, `DeleteMsg` through `js.Stream(ctx, name)`); publish calls with their options (`nats.MsgId` to `jetstream.WithMsgID`, and the expectation options); KeyValue and object store handles and methods with the context added; config types, enum constants and error sentinels renamed, with `ConsumerConfig.Heartbeat` renamed `IdleHeartbeat`; message methods (`AckSync` to `DoubleAck(ctx)`); subscribe options folded into a `ConsumerConfig` literal together with `FilterSubject` set to the subscribe subject, as legacy subscribe does; and, for a subscription not bound to a stream (`nats.Bind`, `nats.BindStream`), the stream resolved at runtime with `StreamNameBySubject(ctx, subject)`, which is the request legacy `Subscribe` itself sends (`js.go`), so behavior and permissions are unchanged. A site that needs a stream handle SHALL carry a note that the new call sends a `STREAM.INFO` request and needs that permission.
+A site whose every input is known SHALL be classified mechanical and carry its replacement, including at least: the handle (`nc.JetStream(opts...)` to `jetstream.New`, `NewWithDomain` for `nats.Domain`, `NewWithAPIPrefix` for `nats.APIPrefix`, `WithPublishAsyncErrHandler`, `WithPublishAsyncMaxPending`); stream and consumer management with pointer arguments made values (`AddStream` to `CreateStream`, `UpdateStream`, `DeleteStream`, `AddConsumer` to `CreateConsumer` — legacy `AddConsumer` returns the existing consumer for an identical config and fails with `ErrConsumerNameAlreadyInUse` otherwise, which is create semantics, not create-or-update — `UpdateConsumer`, `DeleteConsumer`, and `CreatePushConsumer`/`UpdatePushConsumer` for a config literal that sets `DeliverSubject`); a legacy `ConsumerConfig` literal without an `AckPolicy` given `AckPolicy: jetstream.AckNonePolicy`, since legacy's zero ack policy is none and jetstream's is explicit; calls that need a stream handle (`PurgeStream`, `StreamInfo`, `GetMsg`, `GetLastMsg`, `DeleteMsg` through `js.Stream(ctx, name)`); publish calls with their options (`nats.MsgId` to `jetstream.WithMsgID`, and the expectation options); KeyValue and object store handles and methods with the context added; config types, enum constants and error sentinels renamed, with `ConsumerConfig.Heartbeat` renamed `IdleHeartbeat`; message methods (`AckSync` to `DoubleAck(ctx)`); subscribe options folded into a `ConsumerConfig` literal together with `FilterSubject` set to the subscribe subject, as legacy subscribe does; and, for a subscription not bound to a stream (`nats.Bind`, `nats.BindStream`), the stream resolved at runtime with `StreamNameBySubject(ctx, subject)`, which is the request legacy `Subscribe` itself sends (`js.go`), so behavior and permissions are unchanged. A consumer a legacy subscription would create is created with `CreateOrUpdateConsumer`, as nats.go's `MIGRATION.md` does, and the site notes the one difference: legacy used an existing durable as it was when the options it set were compatible, while `CreateOrUpdateConsumer` applies the code's full configuration. A site that needs a stream handle SHALL carry a note that the new call sends a `STREAM.INFO` request and needs that permission.
 
 #### Scenario: Consumer creation
-- **WHEN** code calls `js.AddConsumer("ORDERS", &nats.ConsumerConfig{Durable: "w", Heartbeat: time.Second})`
-- **THEN** the replacement is `jsNew.CreateConsumer(ctx, "ORDERS", jetstream.ConsumerConfig{Durable: "w", IdleHeartbeat: time.Second})`
+- **WHEN** code calls `js.AddConsumer("ORDERS", &nats.ConsumerConfig{Durable: "w", DeliverSubject: "w.deliver", Heartbeat: time.Second})`
+- **THEN** the replacement is `jsNew.CreatePushConsumer(ctx, "ORDERS", jetstream.ConsumerConfig{Durable: "w", DeliverSubject: "w.deliver", IdleHeartbeat: time.Second, AckPolicy: jetstream.AckNonePolicy})`
 
 #### Scenario: Purge needs a stream handle
 - **WHEN** code calls `js.PurgeStream("ORDERS")`
@@ -115,7 +119,7 @@ A site whose transformation is determined but whose text depends on surrounding 
 
 ### Requirement: Decision sites name the choice, the options, a behavior-preserving default and the reason
 A site that needs the user SHALL be classified decision and name its pattern, its options, the recommended default and the reason, and SHALL list the replacement that follows each option. Every default SHALL preserve the legacy behavior, except `subscribe-target`, whose default is a pull consumer. The patterns SHALL be:
-- `subscribe-target` for `Subscribe`, `QueueSubscribe`, `SubscribeSync`, `QueueSubscribeSync`, `ChanSubscribe`, `ChanQueueSubscribe`: a pull consumer (`Consume` for callbacks, `Messages` for sync and channel forms; for queue forms, instances share one pull consumer) as the default; a push consumer for `Subscribe` and `QueueSubscribe` only (`CreateOrUpdatePushConsumer` with a `DeliverSubject`, and `DeliverGroup` for queues), since `PushConsumer` offers only `Consume`; or defer the site.
+- `subscribe-target` for `Subscribe`, `QueueSubscribe`, `SubscribeSync`, `QueueSubscribeSync`, `ChanSubscribe`, `ChanQueueSubscribe`: a pull consumer (`Consume` for callbacks, `Messages` for sync and channel forms; for queue forms, instances share one pull consumer) as the default; a push consumer for `Subscribe` and `QueueSubscribe` only (`CreateOrUpdatePushConsumer` with a `DeliverSubject`, and `DeliverGroup` for queues), since `PushConsumer` offers only `Consume`; or defer the site. A subscription bound to an existing consumer with `nats.Bind` defaults to the push consumer (`js.PushConsumer(ctx, stream, consumer)`): legacy `Subscribe` and `QueueSubscribe` bind only push consumers (`processConsInfo` fails with `ErrPullSubscribeRequired` otherwise), so pull would fail at runtime until the consumer is recreated.
 - `ack` for callback subscriptions that auto-acked (no `nats.ManualAck`, ack policy not `AckNone`, not ordered; legacy wraps the callback as `ocb(m); m.Ack()`): ack after the handler returns (the default), explicit acks chosen per handler path, or `AckNone`.
 - `push-only-option`, only once pull is chosen, for `nats.DeliverSubject`, `nats.EnableFlowControl`, `nats.IdleHeartbeat` and `nats.RateLimit`: drop with a note (the default, since pull has no equivalent) or choose the push target instead.
 - `channel-max-ack-pending` for `ChanSubscribe` without `nats.MaxAckPending`: legacy sets `MaxAckPending` to the channel capacity; keep that value explicitly (the default) or take the server default.
@@ -125,6 +129,10 @@ A site that needs the user SHALL be classified decision and name its pattern, it
 #### Scenario: Unbound callback subscription
 - **WHEN** code calls `js.Subscribe("orders.new", h, nats.Durable("w"))`
 - **THEN** the site has decisions `subscribe-target` (default pull) and `ack` (default ack after the handler), a durable note, and a stream-name follow-up
+
+#### Scenario: Bound push subscription
+- **WHEN** code calls `js.QueueSubscribe("orders.new", "q", h, nats.Bind("ORDERS", "workers"), nats.ManualAck())`
+- **THEN** the site's `subscribe-target` defaults to push through `js.PushConsumer(ctx, "ORDERS", "workers")`, and it has no `ack` decision
 
 #### Scenario: Manual ack
 - **WHEN** the same call also passes `nats.ManualAck()`
@@ -161,7 +169,7 @@ The plan SHALL list follow-ups after the steps: changes that are not needed to f
 - **THEN** the follow-up asks for a static name without naming a candidate
 
 ### Requirement: Decisions are asked per pattern and recorded in natsvet-migrate.json
-The plan SHALL group pending decisions by pattern and scope (module by default), each with the number of sites it covers, its options and its default. Answers SHALL be read from `natsvet-migrate.json` at the module root when it exists, or from the file named by `-decisions`; each answer is a pattern, a scope (`module`, `component:<id>` or `site:<id>`) and a choice, and the narrowest scope wins. The planner SHALL NOT write the file. A site whose decisions are all answered is reclassified by the chosen option (mechanical or guided, with its replacement or template), and answered patterns no longer appear as pending. A component answered `skip` SHALL keep its sites out of the steps, be counted separately, and block the removal of any declaration it shares with a migrated component. An answer naming an unknown pattern, option or scope SHALL be an error; an answer whose scope no longer exists SHALL be reported. Given the same packages and the same answers, the plan SHALL be byte-identical.
+The plan SHALL group pending decisions by pattern and scope (module by default), each with the number of sites it covers, its options and its default; when sites of one pattern have different defaults, the most common default is asked at module scope and each other site at its own scope. Answers SHALL be read from `natsvet-migrate.json` at the module root when it exists, or from the file named by `-decisions`; each answer is a pattern, a scope (`module`, `component:<id>` or `site:<id>`) and a choice, and the narrowest scope wins. The planner SHALL NOT write the file. A site whose decisions are all answered is reclassified by the chosen option (mechanical or guided, with its replacement or template), and answered patterns no longer appear as pending. A component answered `skip` SHALL keep its sites out of the steps, be counted separately, and block the removal of any declaration it shares with a migrated component. An answer naming an unknown pattern, option or scope SHALL be an error; an answer whose scope no longer exists SHALL be reported. Given the same packages and the same answers, the plan SHALL be byte-identical.
 
 #### Scenario: One answer covers many sites
 - **WHEN** twelve `Subscribe` sites are pending and `natsvet-migrate.json` answers `subscribe-target` with `pull` for the module
@@ -191,7 +199,7 @@ A legacy symbol without a `jetstream` equivalent SHALL produce an unmapped site 
 - **THEN** the site is unmapped with a reason, and no replacement is proposed
 
 ### Requirement: Components and a dual-handle step order
-The planner SHALL group sites into components: a legacy handle's creation sites (roots) and every declaration the handle flows through — variables, struct fields, parameters, results — connected by assignment, call argument and return, across all loaded packages. For each migrated component the plan SHALL order steps so the code compiles after each one: create a `jetstream` handle named `<name>New` next to each legacy root from the same connection; add a sibling declaration of the new type, named `<name>New`, next to each declaration that carries the legacy handle; migrate the sites (mechanical, then guided, then decided); remove the legacy handle and its declarations; rename each `<name>New` to `<name>`. The plan SHALL mark a component that is package-local and has no pending decisions as safe to apply in one commit. When a legacy value is passed to a package outside the loaded set, or reaches test code while `-tests=false`, the component SHALL be marked blocked at that point and the removal and rename steps SHALL be omitted.
+The planner SHALL group sites into components: a legacy handle's creation sites (roots) and every declaration the handle flows through — variables, struct fields, parameters, results — connected by assignment, call argument and return, across all loaded packages. For each migrated component the plan SHALL order steps so the code compiles after each one: create a `jetstream` handle named `<name>New` next to each legacy root from the same connection; add a sibling declaration of the new type, named `<name>New`, next to each variable, struct field and parameter that carries the legacy handle; migrate the sites (mechanical, then guided, then decided); remove the legacy handle and its declarations; rename each `<name>New` to `<name>`. While a component has guided sites, its removal and rename steps SHALL be marked as waiting on them, since only those sites still use the legacy handle. The plan SHALL mark a component that is package-local and has no pending decisions and no guided sites as safe to apply in one commit. When a legacy value is passed to a package outside the loaded set, or reaches test code while `-tests=false`, the component SHALL be marked blocked at that point and the removal and rename steps SHALL be omitted. A handle the planner cannot thread — returned from a function, received from a call it does not rewrite (a helper, a type assertion), or a parameter fed something other than a handle variable — SHALL get no sibling: its sites are guided, and its component's removal and rename wait on them.
 
 #### Scenario: Handle stored in a struct across packages
 - **WHEN** `package app` creates `nc.JetStream()`, stores it in `Service.js`, and `package worker` calls `svc.js.Publish(...)`
@@ -202,15 +210,23 @@ The planner SHALL group sites into components: a legacy handle's creation sites 
 - **THEN** the plan has two components
 
 #### Scenario: One-commit hint
-- **WHEN** a component lives in one package and none of its sites has a pending decision
+- **WHEN** a component lives in one package and none of its sites has a pending decision or is guided
 - **THEN** the plan marks it safe to apply in one commit, and its steps are unchanged
+
+#### Scenario: Guided sites hold the legacy handle
+- **WHEN** a component's only remaining legacy use is a guided `Fetch` loop
+- **THEN** its removal and rename steps are marked as waiting on that site
+
+#### Scenario: Handle returned from a helper
+- **WHEN** code calls `kv, err := fw.KV(ctx, "config")`, a function that returns `nats.KeyValue`, and then `kv.Get("a")`
+- **THEN** `kv` gets no sibling, the `Get` site is guided with the reason, and the component's removal waits on it
 
 #### Scenario: External boundary
 - **WHEN** a legacy handle is passed to a function of a module outside the loaded packages
 - **THEN** the component is marked blocked at that call and its steps omit removing and renaming the handle
 
 ### Requirement: The JSON plan is a versioned contract with machine edits, and the Markdown guide is rendered from it
-The JSON plan SHALL carry a schema version, the nats.go version the table was verified against, the loaded packages, a SHA-256 hash of every file it edits, counts (sites by class, skipped sites, legacy identifiers), components with their steps, sites and follow-ups, and pending decisions, all in a stable order. Every site and step with a replacement SHALL carry human-readable `before` and `after` text and machine edits, each a file, a start and end byte offset against the hashed content, and the new text; edits within a step SHALL NOT overlap. The plan header SHALL tell agents to read `natsvet migrate skill`. The Markdown format SHALL be rendered from the same plan by template: a summary, the pending decisions as questions with their defaults, each component's steps with their sites, then the follow-ups. The skill SHALL describe the agent loop — answer the pending decisions with the user and record them in `natsvet-migrate.json`, apply one step, build, run `natsvet ./...` and the tests, commit, re-plan — and SHALL name the schema version it understands.
+The JSON plan SHALL carry a schema version, the nats.go version the table was verified against, the loaded packages, a SHA-256 hash of every file it edits, counts (sites by class, skipped sites, legacy identifiers), components with their steps, sites and follow-ups, and pending decisions, all in a stable order. Every site and step with a replacement SHALL carry human-readable `before` and `after` text and machine edits, each a file, a start and end byte offset, and the new text. A step's offsets SHALL be against each file as it stands after all earlier steps, and the step SHALL record the SHA-256 each file it edits must have before it is applied; edits within a step SHALL NOT overlap. The plan header SHALL tell agents to read `natsvet migrate skill`. The Markdown format SHALL be rendered from the same plan by template: a summary, the pending decisions as questions with their defaults, each component's steps with their sites, then the follow-ups. The skill SHALL describe the agent loop — answer the pending decisions with the user and record them in `natsvet-migrate.json`, apply one step, build, run `natsvet ./...` and the tests, commit, re-plan — and SHALL name the schema version it understands.
 
 #### Scenario: Schema version in both
 - **WHEN** a plan is produced
@@ -218,7 +234,11 @@ The JSON plan SHALL carry a schema version, the nats.go version the table was ve
 
 #### Scenario: Stale file
 - **WHEN** a file changes after the plan was produced
-- **THEN** its current hash differs from the plan's, so tooling that applies the edits can refuse that file
+- **THEN** its current hash differs from the hash the next step records for it, so tooling that applies the edits can refuse that file
+
+#### Scenario: Steps apply in order
+- **WHEN** the steps of a plan are applied in order, each checking its recorded hashes
+- **THEN** every recorded hash matches, including the rename step that edits identifiers inserted by earlier steps
 
 #### Scenario: Markdown mirrors JSON
 - **WHEN** the same plan is written in both formats
