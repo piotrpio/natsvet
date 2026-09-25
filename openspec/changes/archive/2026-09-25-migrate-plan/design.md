@@ -103,3 +103,8 @@ Corpus (`scripts/migrate-corpus.sh`, and `TestApplyCorpus` applying every machin
 | eventing-natss | v1.43.0 | 227 | 262 | 126 | 136 | 0 | 6 | 135 (12) |
 
 The machine share is low, and the reason is the same in all three: handles reach the code through things the dual-handle order does not thread. natscli builds `nc.JetStream(append(jsOpts(), ...)...)` with runtime options that pick the constructor, so every root is guided and every later step waits on it; the trial proves the plan honest, not that its edits compile. go-choria gets every KeyValue handle from `Framework.KV(...)`, an interface method with gomock implementations. eventing-natss (on v1.43.0, so its first step is `go get`) passes handles through test doubles. Per-site text is exact for the mechanical sites of all three; applying it needs the guided root or helper migrated first, which is the agent's work the skill describes.
+
+## Open questions
+
+- **Push ordered consumers.** Ordered subscriptions are mapped to the pull-based `jetstream.OrderedConsumer` without a decision, since `jetstream` has no push ordered consumer. The maintainer plans one for nats.go; when it ships, ordered subscriptions get the `subscribe-target` choice with push as the default (`docs/design.md` §8 item 14).
+- **`component: skip` reaches only component sites.** Sites that belong to skipped code but are not tied to one of its handles stay in the plan: in natscli, the benchmark handler's `Ack`/`AckSync`, its `Fetch` loop (the subscription is assigned to an existing variable) and the `jsOpts()` helper. Left as is for now.

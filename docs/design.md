@@ -702,7 +702,7 @@ The migration family moves a module off the legacy API. It is not a rule: a rewr
 crosses packages, needs the user's decisions, and must keep the module compiling
 between steps, none of which fits a per-package analyzer or a `SuggestedFix`.
 
-- **`migrate-plan`** (implemented): `natsvet migrate plan ./...` loads the module as one
+- **`migrate-plan`** (done): `natsvet migrate plan ./...` loads the module as one
   program and writes a versioned JSON plan (or `-format markdown`): every legacy site
   classified mechanical (exact text and byte-offset edits), guided (a template and the
   facts it needs), decision (options, a behavior-preserving default, the reason) or
@@ -794,7 +794,7 @@ is one reviewable unit and helpers are built once. Specs are one per rule (each 
 item a requirement, each test case a scenario, the spec text doubling as the rule `Doc`)
 plus `analyzer-framework` and `testing`.
 
-Progress (2026-09-25): 1–3, the release-readiness part of 4, and 5–8 are done. The tag
+Progress (2026-09-25): 1–3, the release-readiness part of 4, and 5–9 are done. The tag
 and the upstream golangci-lint PR wait for the repository move.
 Read the archived change's `design.md` before extending a rule: that is where the
 corpus-driven corrections live.
@@ -832,7 +832,7 @@ corpus-driven corrections live.
    key sites (header literal keys, comparisons with a header range key). The corpus
    added 2 lines, both `TP`: go-choria's `Nats-TTLSeconds` and natscli's
    `Nats-UpTo-Sequnce`.
-9. **`migrate-plan`** (implemented): §8 item 6 — `natsvet migrate plan` and `natsvet
+9. **`migrate-plan`** (done): §8 item 6 — `natsvet migrate plan` and `natsvet
    migrate skill` (§3.5). The test-only applier applies every machine step of the testdata
    plan with a type-check after each; on natscli, go-choria and eventing-natss the plans
    are exact about what is left but mostly guided, because their handles come from
@@ -903,3 +903,9 @@ corpus-driven corrections live.
     row nor an off-by-default flag has evidence behind it; revisit only with a real case.
 13. `handle`/`pubasync` on `go`/`defer` statements (`go cons.Consume(h)`): not a discard
     shape today; nobody writes it. Add to `Discarded` if it ever shows up.
+14. Ordered subscriptions in `natsvet migrate plan`: legacy ordered consumers are push-based,
+    and the planner maps them to `jetstream`'s ordered consumer, which is pull-based, with
+    no decision, because `jetstream` has no push ordered consumer yet. A push ordered
+    consumer is planned for nats.go; once it ships (and the mapping table is re-verified
+    against that release), ordered subscriptions get the `subscribe-target` choice, with
+    push as the behavior-preserving default.
