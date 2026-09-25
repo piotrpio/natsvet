@@ -14,6 +14,7 @@
 package migrate
 
 import (
+	"cmp"
 	"fmt"
 	"go/ast"
 	"go/constant"
@@ -837,10 +838,14 @@ func (p *planner) subscriptionUses(rw *rewriter, sc *subCall, pull bool) (out []
 			}
 		}
 	}()
+	var ids []*ast.Ident
 	for id, u := range info.Uses {
-		if u != obj {
-			continue
+		if u == obj {
+			ids = append(ids, id)
 		}
+	}
+	slices.SortFunc(ids, func(a, b *ast.Ident) int { return cmp.Compare(a.Pos(), b.Pos()) })
+	for _, id := range ids {
 		uses++
 		up, _ := astutil.PathEnclosingInterval(f.ast, id.Pos(), id.End())
 		sel, ok := parentOf(up, id).(*ast.SelectorExpr)
@@ -853,7 +858,7 @@ func (p *planner) subscriptionUses(rw *rewriter, sc *subCall, pull bool) (out []
 					continue
 				}
 			}
-			rw.guided("the subscription %s is used at %s in a way the planner does not rewrite", lhs.Name, p.prog.fset.Position(id.Pos()))
+			rw.guided("the subscription %s is used at %s in a way the planner does not rewrite", lhs.Name, p.posID(id.Pos()))
 			continue
 		}
 		stmt := parentOf(up, call)

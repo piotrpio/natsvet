@@ -30,8 +30,16 @@
       "sha256": "2a50828eb3e1161f5126c9a136d03ce6dfd5885cb76b386b474b3112d2ca697c"
     },
     {
+      "file": "migrate/multifile/handle.go",
+      "sha256": "d3e1a847660fb90ca3ee24bbe39d96af57464ddccddaac2ada8c11625dffb3eb"
+    },
+    {
       "file": "migrate/objects/objects.go",
       "sha256": "a8b71bdc98305f29abcb1e8b8f08dbb322f99179c42ebf48a0a00278cf005f01"
+    },
+    {
+      "file": "migrate/order/order.go",
+      "sha256": "e5dfdd60a16cbf5babd26639ff99b8e0527b7f2a9c5e9cc62127e89b83daf765"
     },
     {
       "file": "migrate/scenarios/corpus.go",
@@ -47,10 +55,10 @@
     }
   ],
   "counts": {
-    "legacy_uses": 124,
-    "sites": 91,
-    "mechanical": 67,
-    "guided": 16,
+    "legacy_uses": 133,
+    "sites": 103,
+    "mechanical": 78,
+    "guided": 17,
     "decision": 7,
     "unmapped": 1,
     "skipped": 0
@@ -117,7 +125,7 @@
     {
       "pattern": "component",
       "scope": "module",
-      "sites": 27,
+      "sites": 29,
       "options": [
         "migrate",
         "skip"
@@ -943,6 +951,123 @@
     },
     {
       "id": "S33",
+      "component": "migrate/multifile/handle.go:21:2",
+      "kind": "add-handle",
+      "summary": "create the jetstream siblings jsNew next to the legacy handles",
+      "machine": true,
+      "sites": [
+        "migrate/multifile/handle.go:21:13"
+      ],
+      "expect": [
+        {
+          "file": "migrate/multifile/handle.go",
+          "sha256": "d3e1a847660fb90ca3ee24bbe39d96af57464ddccddaac2ada8c11625dffb3eb"
+        }
+      ],
+      "edits": [
+        {
+          "file": "migrate/multifile/handle.go",
+          "start": 744,
+          "end": 779,
+          "new": "import (\n\t\"github.com/nats-io/nats.go\"\n\n\t\"github.com/nats-io/nats.go/jetstream\"\n)"
+        },
+        {
+          "file": "migrate/multifile/handle.go",
+          "start": 887,
+          "end": 887,
+          "new": "\tjsNew, err := jetstream.New(nc)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\t_ = js\n\t_ = jsNew\n"
+        }
+      ]
+    },
+    {
+      "id": "S34",
+      "component": "migrate/multifile/handle.go:21:2",
+      "kind": "site",
+      "summary": "JetStreamManager.AccountInfo becomes JetStream.AccountInfo",
+      "machine": true,
+      "sites": [
+        "migrate/multifile/handle.go:25:15"
+      ],
+      "expect": [
+        {
+          "file": "migrate/multifile/handle.go",
+          "sha256": "07458a66a661149c9e5ed91c4b6e25da4cfb7f88633fc776e450b9b2f6d927a6"
+        }
+      ],
+      "edits": [
+        {
+          "file": "migrate/multifile/handle.go",
+          "start": 753,
+          "end": 753,
+          "new": "\t\"context\"\n\n"
+        },
+        {
+          "file": "migrate/multifile/handle.go",
+          "start": 1035,
+          "end": 1051,
+          "new": "jsNew.AccountInfo(context.Background())"
+        }
+      ]
+    },
+    {
+      "id": "S35",
+      "component": "migrate/multifile/handle.go:21:2",
+      "kind": "remove-legacy",
+      "summary": "remove the legacy handles, their roots and the values threaded into them",
+      "machine": true,
+      "sites": [
+        "migrate/multifile/handle.go:21:13"
+      ],
+      "expect": [
+        {
+          "file": "migrate/multifile/handle.go",
+          "sha256": "7dcca17771e9445a1ce2e2c3db99f197bb75c72eecfe05ac03662e120c52633e"
+        }
+      ],
+      "edits": [
+        {
+          "file": "migrate/multifile/handle.go",
+          "start": 882,
+          "end": 945,
+          "new": ""
+        },
+        {
+          "file": "migrate/multifile/handle.go",
+          "start": 1014,
+          "end": 1033,
+          "new": ""
+        }
+      ]
+    },
+    {
+      "id": "S36",
+      "component": "migrate/multifile/handle.go:21:2",
+      "kind": "rename",
+      "summary": "rename each sibling to its legacy name: jsNew → js",
+      "machine": true,
+      "expect": [
+        {
+          "file": "migrate/multifile/handle.go",
+          "sha256": "3c2146a72e5ac95a94831ab7a86a01bbac7f8df5c3d291c371c2b27559f4e18e"
+        }
+      ],
+      "edits": [
+        {
+          "file": "migrate/multifile/handle.go",
+          "start": 883,
+          "end": 888,
+          "new": "js"
+        },
+        {
+          "file": "migrate/multifile/handle.go",
+          "start": 965,
+          "end": 970,
+          "new": "js"
+        }
+      ]
+    },
+    {
+      "id": "S37",
       "component": "migrate/objects/objects.go:23:2",
       "kind": "add-handle",
       "summary": "create the jetstream siblings jsNew, objNew next to the legacy handles",
@@ -979,7 +1104,7 @@
       ]
     },
     {
-      "id": "S34",
+      "id": "S38",
       "component": "migrate/objects/objects.go:23:2",
       "kind": "site",
       "summary": "ObjectStore.PutBytes becomes ObjectStore.PutBytes",
@@ -1003,7 +1128,7 @@
       ]
     },
     {
-      "id": "S35",
+      "id": "S39",
       "component": "migrate/objects/objects.go:23:2",
       "kind": "site",
       "summary": "ObjectStore.GetBytes becomes ObjectStore.GetBytes",
@@ -1027,7 +1152,7 @@
       ]
     },
     {
-      "id": "S36",
+      "id": "S40",
       "component": "migrate/objects/objects.go:23:2",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -1070,7 +1195,7 @@
       ]
     },
     {
-      "id": "S37",
+      "id": "S41",
       "component": "migrate/objects/objects.go:23:2",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js, objNew → obj",
@@ -1115,7 +1240,70 @@
       ]
     },
     {
-      "id": "S38",
+      "id": "S42",
+      "component": "migrate/order/order.go:26:11",
+      "kind": "add-handle",
+      "summary": "create the jetstream siblings jsNew next to the legacy handles",
+      "machine": true,
+      "sites": [
+        "migrate/order/order.go:26:11"
+      ],
+      "expect": [
+        {
+          "file": "migrate/order/order.go",
+          "sha256": "e5dfdd60a16cbf5babd26639ff99b8e0527b7f2a9c5e9cc62127e89b83daf765"
+        }
+      ],
+      "edits": [
+        {
+          "file": "migrate/order/order.go",
+          "start": 740,
+          "end": 775,
+          "new": "import (\n\t\"github.com/nats-io/nats.go\"\n\n\t\"github.com/nats-io/nats.go/jetstream\"\n)"
+        },
+        {
+          "file": "migrate/order/order.go",
+          "start": 896,
+          "end": 896,
+          "new": ", jsNew jetstream.JetStream"
+        }
+      ]
+    },
+    {
+      "id": "S43",
+      "component": "migrate/order/order.go:26:11",
+      "kind": "site",
+      "summary": "PullSubscribe becomes a jetstream.Consumer",
+      "machine": false,
+      "sites": [
+        "migrate/order/order.go:27:14"
+      ]
+    },
+    {
+      "id": "S44",
+      "component": "migrate/order/order.go:26:11",
+      "kind": "remove-legacy",
+      "summary": "remove the legacy handles, their roots and the values threaded into them",
+      "machine": false,
+      "sites": [
+        "migrate/order/order.go:26:11"
+      ],
+      "waits_on": [
+        "migrate/order/order.go:27:14"
+      ]
+    },
+    {
+      "id": "S45",
+      "component": "migrate/order/order.go:26:11",
+      "kind": "rename",
+      "summary": "rename each sibling to its legacy name: jsNew → js",
+      "machine": false,
+      "waits_on": [
+        "migrate/order/order.go:27:14"
+      ]
+    },
+    {
+      "id": "S46",
       "component": "migrate/scenarios/corpus.go:26:2",
       "kind": "add-handle",
       "summary": "create the jetstream siblings jsNew next to the legacy handles",
@@ -1125,7 +1313,7 @@
       ]
     },
     {
-      "id": "S39",
+      "id": "S47",
       "component": "migrate/scenarios/corpus.go:26:2",
       "kind": "site",
       "summary": "JetStreamManager.DeleteStream becomes JetStream.DeleteStream",
@@ -1138,7 +1326,7 @@
       ]
     },
     {
-      "id": "S40",
+      "id": "S48",
       "component": "migrate/scenarios/corpus.go:26:2",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -1151,7 +1339,7 @@
       ]
     },
     {
-      "id": "S41",
+      "id": "S49",
       "component": "migrate/scenarios/corpus.go:26:2",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js",
@@ -1161,7 +1349,7 @@
       ]
     },
     {
-      "id": "S42",
+      "id": "S50",
       "component": "migrate/scenarios/corpus.go:35:37",
       "kind": "add-handle",
       "summary": "create the jetstream siblings jsNew next to the legacy handles",
@@ -1191,7 +1379,7 @@
       ]
     },
     {
-      "id": "S43",
+      "id": "S51",
       "component": "migrate/scenarios/corpus.go:35:37",
       "kind": "site",
       "summary": "nats.StreamConfig literal becomes jetstream.StreamConfig; nats.WorkQueuePolicy becomes jetstream.WorkQueuePolicy; JetStreamManager.AddStream becomes JetStream.CreateStream",
@@ -1229,7 +1417,7 @@
       ]
     },
     {
-      "id": "S44",
+      "id": "S52",
       "component": "migrate/scenarios/corpus.go:35:37",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -1253,7 +1441,7 @@
       ]
     },
     {
-      "id": "S45",
+      "id": "S53",
       "component": "migrate/scenarios/corpus.go:35:37",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js",
@@ -1280,7 +1468,7 @@
       ]
     },
     {
-      "id": "S46",
+      "id": "S54",
       "component": "migrate/scenarios/corpus.go:43:33",
       "kind": "add-handle",
       "summary": "create the jetstream siblings jsNew next to the legacy handles",
@@ -1304,7 +1492,7 @@
       ]
     },
     {
-      "id": "S47",
+      "id": "S55",
       "component": "migrate/scenarios/corpus.go:43:33",
       "kind": "site",
       "summary": "retype nats.ConsumerInfo as jetstream.ConsumerInfo; nats.ConsumerInfo becomes jetstream.ConsumerInfo; JetStreamManager.ConsumerInfo becomes Consumer.Info",
@@ -1342,7 +1530,7 @@
       ]
     },
     {
-      "id": "S48",
+      "id": "S56",
       "component": "migrate/scenarios/corpus.go:43:33",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -1366,7 +1554,7 @@
       ]
     },
     {
-      "id": "S49",
+      "id": "S57",
       "component": "migrate/scenarios/corpus.go:43:33",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js",
@@ -1393,7 +1581,7 @@
       ]
     },
     {
-      "id": "S50",
+      "id": "S58",
       "component": "migrate/scenarios/corpus.go:61:24",
       "kind": "add-handle",
       "summary": "create the jetstream siblings kvNew next to the legacy handles",
@@ -1417,7 +1605,7 @@
       ]
     },
     {
-      "id": "S51",
+      "id": "S59",
       "component": "migrate/scenarios/corpus.go:61:24",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -1441,7 +1629,7 @@
       ]
     },
     {
-      "id": "S52",
+      "id": "S60",
       "component": "migrate/scenarios/corpus.go:61:24",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: kvNew → kv",
@@ -1462,7 +1650,7 @@
       ]
     },
     {
-      "id": "S53",
+      "id": "S61",
       "component": "migrate/scenarios/corpus.go:65:2",
       "kind": "add-handle",
       "summary": "create the jetstream siblings  next to the legacy handles",
@@ -1472,7 +1660,7 @@
       ]
     },
     {
-      "id": "S54",
+      "id": "S62",
       "component": "migrate/scenarios/corpus.go:65:2",
       "kind": "site",
       "summary": "JetStreamManager.DeleteStream becomes JetStream.DeleteStream",
@@ -1481,33 +1669,33 @@
         "migrate/scenarios/corpus.go:66:9"
       ],
       "waits_on": [
-        "S53"
+        "S61"
       ]
     },
     {
-      "id": "S55",
+      "id": "S63",
       "component": "migrate/scenarios/corpus.go:65:2",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
       "machine": false,
       "waits_on": [
-        "S53",
+        "S61",
         "migrate/scenarios/corpus.go:66:9"
       ]
     },
     {
-      "id": "S56",
+      "id": "S64",
       "component": "migrate/scenarios/corpus.go:65:2",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js",
       "machine": false,
       "waits_on": [
-        "S53",
+        "S61",
         "migrate/scenarios/corpus.go:66:9"
       ]
     },
     {
-      "id": "S57",
+      "id": "S65",
       "component": "migrate/scenarios/corpus.go:72:16",
       "kind": "add-handle",
       "summary": "create the jetstream siblings  next to the legacy handles",
@@ -1520,7 +1708,7 @@
       ]
     },
     {
-      "id": "S58",
+      "id": "S66",
       "component": "migrate/scenarios/corpus.go:72:16",
       "kind": "site",
       "summary": "JetStreamManager.DeleteStream becomes JetStream.DeleteStream",
@@ -1529,11 +1717,11 @@
         "migrate/scenarios/corpus.go:73:9"
       ],
       "waits_on": [
-        "S57"
+        "S65"
       ]
     },
     {
-      "id": "S59",
+      "id": "S67",
       "component": "migrate/scenarios/corpus.go:72:16",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -1542,25 +1730,25 @@
         "migrate/scenarios/corpus.go:72:16"
       ],
       "waits_on": [
-        "S57",
+        "S65",
         "migrate/scenarios/corpus.go:72:16",
         "migrate/scenarios/corpus.go:73:9"
       ]
     },
     {
-      "id": "S60",
+      "id": "S68",
       "component": "migrate/scenarios/corpus.go:72:16",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js",
       "machine": false,
       "waits_on": [
-        "S57",
+        "S65",
         "migrate/scenarios/corpus.go:72:16",
         "migrate/scenarios/corpus.go:73:9"
       ]
     },
     {
-      "id": "S61",
+      "id": "S69",
       "component": "migrate/scenarios/corpus.go:85:2",
       "kind": "add-handle",
       "summary": "create the jetstream siblings jsNew next to the legacy handles",
@@ -1571,7 +1759,7 @@
       ]
     },
     {
-      "id": "S62",
+      "id": "S70",
       "component": "migrate/scenarios/corpus.go:85:2",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -1585,7 +1773,7 @@
       ]
     },
     {
-      "id": "S63",
+      "id": "S71",
       "component": "migrate/scenarios/corpus.go:85:2",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js",
@@ -1595,7 +1783,7 @@
       ]
     },
     {
-      "id": "S64",
+      "id": "S72",
       "component": "migrate/scenarios/corpus.go:94:2",
       "kind": "add-handle",
       "summary": "create the jetstream siblings  next to the legacy handles",
@@ -1605,7 +1793,7 @@
       ]
     },
     {
-      "id": "S65",
+      "id": "S73",
       "component": "migrate/scenarios/corpus.go:94:2",
       "kind": "site",
       "summary": "KeyValue.Get becomes KeyValue.Get",
@@ -1614,33 +1802,33 @@
         "migrate/scenarios/corpus.go:98:12"
       ],
       "waits_on": [
-        "S64"
+        "S72"
       ]
     },
     {
-      "id": "S66",
+      "id": "S74",
       "component": "migrate/scenarios/corpus.go:94:2",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
       "machine": false,
       "waits_on": [
-        "S64",
+        "S72",
         "migrate/scenarios/corpus.go:98:12"
       ]
     },
     {
-      "id": "S67",
+      "id": "S75",
       "component": "migrate/scenarios/corpus.go:94:2",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: kvNew → kv",
       "machine": false,
       "waits_on": [
-        "S64",
+        "S72",
         "migrate/scenarios/corpus.go:98:12"
       ]
     },
     {
-      "id": "S68",
+      "id": "S76",
       "component": "migrate/scenarios/scenarios.go:25:33",
       "kind": "add-handle",
       "summary": "create the jetstream siblings jsNew next to the legacy handles",
@@ -1670,7 +1858,7 @@
       ]
     },
     {
-      "id": "S69",
+      "id": "S77",
       "component": "migrate/scenarios/scenarios.go:25:33",
       "kind": "site",
       "summary": "retype nats.StreamConfig as jetstream.StreamConfig; JetStreamManager.AddStream becomes JetStream.CreateStream",
@@ -1701,7 +1889,7 @@
       ]
     },
     {
-      "id": "S70",
+      "id": "S78",
       "component": "migrate/scenarios/scenarios.go:25:33",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -1725,7 +1913,7 @@
       ]
     },
     {
-      "id": "S71",
+      "id": "S79",
       "component": "migrate/scenarios/scenarios.go:25:33",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js",
@@ -1752,7 +1940,7 @@
       ]
     },
     {
-      "id": "S72",
+      "id": "S80",
       "component": "migrate/scenarios/scenarios.go:33:25",
       "kind": "add-handle",
       "summary": "create the jetstream siblings jsNew next to the legacy handles",
@@ -1776,7 +1964,7 @@
       ]
     },
     {
-      "id": "S73",
+      "id": "S81",
       "component": "migrate/scenarios/scenarios.go:33:25",
       "kind": "site",
       "summary": "retype nats.StreamConfig as jetstream.StreamConfig; JetStreamManager.AddStream becomes JetStream.CreateStream",
@@ -1807,7 +1995,7 @@
       ]
     },
     {
-      "id": "S74",
+      "id": "S82",
       "component": "migrate/scenarios/scenarios.go:33:25",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -1831,7 +2019,7 @@
       ]
     },
     {
-      "id": "S75",
+      "id": "S83",
       "component": "migrate/scenarios/scenarios.go:33:25",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js",
@@ -1858,7 +2046,7 @@
       ]
     },
     {
-      "id": "S76",
+      "id": "S84",
       "component": "migrate/scenarios/scenarios.go:39:11",
       "kind": "add-handle",
       "summary": "create the jetstream siblings jsNew next to the legacy handles",
@@ -1882,7 +2070,7 @@
       ]
     },
     {
-      "id": "S77",
+      "id": "S85",
       "component": "migrate/scenarios/scenarios.go:39:11",
       "kind": "site",
       "summary": "JetStreamManager.DeleteStream becomes JetStream.DeleteStream",
@@ -1906,7 +2094,7 @@
       ]
     },
     {
-      "id": "S78",
+      "id": "S86",
       "component": "migrate/scenarios/scenarios.go:39:11",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -1930,7 +2118,7 @@
       ]
     },
     {
-      "id": "S79",
+      "id": "S87",
       "component": "migrate/scenarios/scenarios.go:39:11",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js",
@@ -1957,7 +2145,7 @@
       ]
     },
     {
-      "id": "S80",
+      "id": "S88",
       "component": "migrate/scenarios/scenarios.go:44:12",
       "kind": "add-handle",
       "summary": "create the jetstream siblings jsNew next to the legacy handles",
@@ -1981,7 +2169,7 @@
       ]
     },
     {
-      "id": "S81",
+      "id": "S89",
       "component": "migrate/scenarios/scenarios.go:44:12",
       "kind": "site",
       "summary": "JetStreamManager.DeleteStream becomes JetStream.DeleteStream",
@@ -1991,7 +2179,7 @@
       ]
     },
     {
-      "id": "S82",
+      "id": "S90",
       "component": "migrate/scenarios/scenarios.go:44:12",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -2004,7 +2192,7 @@
       ]
     },
     {
-      "id": "S83",
+      "id": "S91",
       "component": "migrate/scenarios/scenarios.go:44:12",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js",
@@ -2014,7 +2202,7 @@
       ]
     },
     {
-      "id": "S84",
+      "id": "S92",
       "component": "migrate/scenarios/scenarios.go:50:36",
       "kind": "add-handle",
       "summary": "create the jetstream siblings jsNew next to the legacy handles",
@@ -2038,7 +2226,7 @@
       ]
     },
     {
-      "id": "S85",
+      "id": "S93",
       "component": "migrate/scenarios/scenarios.go:50:36",
       "kind": "site",
       "summary": "JetStreamManager.AddConsumer becomes JetStream.CreatePushConsumer",
@@ -2062,7 +2250,7 @@
       ]
     },
     {
-      "id": "S86",
+      "id": "S94",
       "component": "migrate/scenarios/scenarios.go:50:36",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -2086,7 +2274,7 @@
       ]
     },
     {
-      "id": "S87",
+      "id": "S95",
       "component": "migrate/scenarios/scenarios.go:50:36",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js",
@@ -2113,7 +2301,7 @@
       ]
     },
     {
-      "id": "S88",
+      "id": "S96",
       "component": "migrate/scenarios/scenarios.go:56:11",
       "kind": "add-handle",
       "summary": "create the jetstream siblings jsNew next to the legacy handles",
@@ -2137,7 +2325,7 @@
       ]
     },
     {
-      "id": "S89",
+      "id": "S97",
       "component": "migrate/scenarios/scenarios.go:56:11",
       "kind": "site",
       "summary": "JetStreamManager.StreamNameBySubject becomes JetStream.StreamNameBySubject",
@@ -2161,7 +2349,7 @@
       ]
     },
     {
-      "id": "S90",
+      "id": "S98",
       "component": "migrate/scenarios/scenarios.go:56:11",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -2185,7 +2373,7 @@
       ]
     },
     {
-      "id": "S91",
+      "id": "S99",
       "component": "migrate/scenarios/scenarios.go:56:11",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js",
@@ -2212,7 +2400,7 @@
       ]
     },
     {
-      "id": "S92",
+      "id": "S100",
       "component": "migrate/scenarios/scenarios.go:61:12",
       "kind": "add-handle",
       "summary": "create the jetstream siblings jsNew next to the legacy handles",
@@ -2236,7 +2424,7 @@
       ]
     },
     {
-      "id": "S93",
+      "id": "S101",
       "component": "migrate/scenarios/scenarios.go:61:12",
       "kind": "site",
       "summary": "PullSubscribe becomes a jetstream.Consumer",
@@ -2272,7 +2460,7 @@
       ]
     },
     {
-      "id": "S94",
+      "id": "S102",
       "component": "migrate/scenarios/scenarios.go:61:12",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -2296,7 +2484,7 @@
       ]
     },
     {
-      "id": "S95",
+      "id": "S103",
       "component": "migrate/scenarios/scenarios.go:61:12",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js",
@@ -2323,7 +2511,7 @@
       ]
     },
     {
-      "id": "S96",
+      "id": "S104",
       "component": "migrate/scenarios/scenarios.go:71:11",
       "kind": "add-handle",
       "summary": "create the jetstream siblings jsNew next to the legacy handles",
@@ -2347,7 +2535,7 @@
       ]
     },
     {
-      "id": "S97",
+      "id": "S105",
       "component": "migrate/scenarios/scenarios.go:71:11",
       "kind": "site",
       "summary": "PullSubscribe becomes a jetstream.Consumer",
@@ -2383,7 +2571,7 @@
       ]
     },
     {
-      "id": "S98",
+      "id": "S106",
       "component": "migrate/scenarios/scenarios.go:71:11",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -2407,7 +2595,7 @@
       ]
     },
     {
-      "id": "S99",
+      "id": "S107",
       "component": "migrate/scenarios/scenarios.go:71:11",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js",
@@ -2440,7 +2628,7 @@
       ]
     },
     {
-      "id": "S100",
+      "id": "S108",
       "component": "migrate/scenarios/scenarios.go:81:35",
       "kind": "add-handle",
       "summary": "create the jetstream siblings jsNew next to the legacy handles",
@@ -2464,7 +2652,7 @@
       ]
     },
     {
-      "id": "S101",
+      "id": "S109",
       "component": "migrate/scenarios/scenarios.go:81:35",
       "kind": "site",
       "summary": "Subscribe becomes a pull consumer's Consume",
@@ -2474,7 +2662,7 @@
       ]
     },
     {
-      "id": "S102",
+      "id": "S110",
       "component": "migrate/scenarios/scenarios.go:81:35",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -2487,7 +2675,7 @@
       ]
     },
     {
-      "id": "S103",
+      "id": "S111",
       "component": "migrate/scenarios/scenarios.go:81:35",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js",
@@ -2497,7 +2685,7 @@
       ]
     },
     {
-      "id": "S104",
+      "id": "S112",
       "component": "migrate/scenarios/scenarios.go:88:2",
       "kind": "add-handle",
       "summary": "create the jetstream siblings jsNew, kvNew next to the legacy handles",
@@ -2528,7 +2716,7 @@
       ]
     },
     {
-      "id": "S105",
+      "id": "S113",
       "component": "migrate/scenarios/scenarios.go:88:2",
       "kind": "site",
       "summary": "KeyValue.Get becomes KeyValue.Get",
@@ -2552,7 +2740,7 @@
       ]
     },
     {
-      "id": "S106",
+      "id": "S114",
       "component": "migrate/scenarios/scenarios.go:88:2",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -2601,7 +2789,7 @@
       ]
     },
     {
-      "id": "S107",
+      "id": "S115",
       "component": "migrate/scenarios/scenarios.go:88:2",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js, kvNew → kv",
@@ -2640,7 +2828,7 @@
       ]
     },
     {
-      "id": "S108",
+      "id": "S116",
       "component": "migrate/scenarios/scenarios.go:104:34",
       "kind": "add-handle",
       "summary": "create the jetstream siblings jsNew next to the legacy handles",
@@ -2664,7 +2852,7 @@
       ]
     },
     {
-      "id": "S109",
+      "id": "S117",
       "component": "migrate/scenarios/scenarios.go:104:34",
       "kind": "site",
       "summary": "nats.ConsumerConfig literal becomes jetstream.ConsumerConfig; nats.AckExplicitPolicy becomes jetstream.AckExplicitPolicy; JetStreamManager.AddConsumer becomes JetStream.CreateConsumer",
@@ -2702,7 +2890,7 @@
       ]
     },
     {
-      "id": "S110",
+      "id": "S118",
       "component": "migrate/scenarios/scenarios.go:104:34",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -2726,7 +2914,7 @@
       ]
     },
     {
-      "id": "S111",
+      "id": "S119",
       "component": "migrate/scenarios/scenarios.go:104:34",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js",
@@ -2753,7 +2941,7 @@
       ]
     },
     {
-      "id": "S112",
+      "id": "S120",
       "component": "migrate/scenarios/scenarios.go:112:34",
       "kind": "add-handle",
       "summary": "create the jetstream siblings jsNew next to the legacy handles",
@@ -2777,7 +2965,7 @@
       ]
     },
     {
-      "id": "S113",
+      "id": "S121",
       "component": "migrate/scenarios/scenarios.go:112:34",
       "kind": "site",
       "summary": "nats.AckNonePolicy becomes jetstream.AckNonePolicy; nats.AckExplicitPolicy becomes jetstream.AckExplicitPolicy; JetStreamManager.AddConsumer becomes JetStream.CreateConsumer",
@@ -2815,7 +3003,7 @@
       ]
     },
     {
-      "id": "S114",
+      "id": "S122",
       "component": "migrate/scenarios/scenarios.go:112:34",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -2839,7 +3027,7 @@
       ]
     },
     {
-      "id": "S115",
+      "id": "S123",
       "component": "migrate/scenarios/scenarios.go:112:34",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js",
@@ -2866,7 +3054,7 @@
       ]
     },
     {
-      "id": "S116",
+      "id": "S124",
       "component": "migrate/scenarios/scenarios.go:122:31",
       "kind": "add-handle",
       "summary": "create the jetstream siblings jsNew next to the legacy handles",
@@ -2890,7 +3078,7 @@
       ]
     },
     {
-      "id": "S117",
+      "id": "S125",
       "component": "migrate/scenarios/scenarios.go:122:31",
       "kind": "site",
       "summary": "Subscribe becomes a pull consumer's Consume",
@@ -2900,7 +3088,7 @@
       ]
     },
     {
-      "id": "S118",
+      "id": "S126",
       "component": "migrate/scenarios/scenarios.go:122:31",
       "kind": "remove-legacy",
       "summary": "remove the legacy handles, their roots and the values threaded into them",
@@ -2913,7 +3101,7 @@
       ]
     },
     {
-      "id": "S119",
+      "id": "S127",
       "component": "migrate/scenarios/scenarios.go:122:31",
       "kind": "rename",
       "summary": "rename each sibling to its legacy name: jsNew → js",
@@ -2923,7 +3111,7 @@
       ]
     },
     {
-      "id": "S120",
+      "id": "S128",
       "kind": "site",
       "summary": "declare a jetstream.JetStream sibling next to the nats.JetStreamContext handle",
       "machine": false,
@@ -2932,7 +3120,28 @@
       ]
     },
     {
-      "id": "S121",
+      "id": "S129",
+      "kind": "site",
+      "summary": "retype nats.StreamConfig as jetstream.StreamConfig; nats.StreamConfig literal becomes jetstream.StreamConfig; retype nats.RetentionPolicy as jetstream.RetentionPolicy; retype nats.StorageType as jetstream.StorageType; retype nats.DiscardPolicy as jetstream.DiscardPolicy; nats.LimitsPolicy becomes jetstream.LimitsPolicy; nats.FileStorage becomes jetstream.FileStorage; nats.DiscardOld becomes jetstream.DiscardOld",
+      "machine": false,
+      "sites": [
+        "migrate/order/order.go:37:15",
+        "migrate/order/order.go:37:42",
+        "migrate/order/order.go:41:3",
+        "migrate/order/order.go:42:3",
+        "migrate/order/order.go:43:3",
+        "migrate/order/order.go:45:15",
+        "migrate/order/order.go:45:43",
+        "migrate/order/order.go:45:70"
+      ],
+      "facts": [
+        "retention changes type from nats.RetentionPolicy to jetstream.RetentionPolicy; review its use in tests := []struct {\n\t\tretention nats.RetentionPolicy\n\t\tstorage   nats.StorageType\n\t\tdiscard   nats.DiscardPolicy\n\t}{\n\t\t{retention: nats.LimitsPolicy, storage: nats.FileStorage, discard: nats.DiscardOld},\n\t}",
+        "storage changes type from nats.StorageType to jetstream.StorageType; review its use in tests := []struct {\n\t\tretention nats.RetentionPolicy\n\t\tstorage   nats.StorageType\n\t\tdiscard   nats.DiscardPolicy\n\t}{\n\t\t{retention: nats.LimitsPolicy, storage: nats.FileStorage, discard: nats.DiscardOld},\n\t}",
+        "discard changes type from nats.DiscardPolicy to jetstream.DiscardPolicy; review its use in tests := []struct {\n\t\tretention nats.RetentionPolicy\n\t\tstorage   nats.StorageType\n\t\tdiscard   nats.DiscardPolicy\n\t}{\n\t\t{retention: nats.LimitsPolicy, storage: nats.FileStorage, discard: nats.DiscardOld},\n\t}"
+      ]
+    },
+    {
+      "id": "S130",
       "kind": "site",
       "summary": "retype nats.KeyValueEntry as jetstream.KeyValueEntry",
       "machine": false,
@@ -2941,7 +3150,7 @@
       ]
     },
     {
-      "id": "S122",
+      "id": "S131",
       "kind": "site",
       "summary": "retype nats.KeyWatcher as jetstream.KeyWatcher",
       "machine": false,
@@ -2950,7 +3159,7 @@
       ]
     },
     {
-      "id": "S123",
+      "id": "S132",
       "kind": "site",
       "summary": "nats.JetStreamContext becomes jetstream.JetStream",
       "machine": false,
@@ -2959,7 +3168,7 @@
       ]
     },
     {
-      "id": "S124",
+      "id": "S133",
       "kind": "site",
       "summary": "declare a jetstream.JetStream sibling next to the nats.JetStreamContext handle",
       "machine": false,
@@ -2968,7 +3177,7 @@
       ]
     },
     {
-      "id": "S125",
+      "id": "S134",
       "kind": "site",
       "summary": "declare a jetstream.KeyValue sibling next to the nats.KeyValue handle",
       "machine": false,
@@ -2977,7 +3186,7 @@
       ]
     },
     {
-      "id": "S126",
+      "id": "S135",
       "kind": "site",
       "summary": "Conn.JetStream creates a handle the planner cannot thread",
       "machine": false,
@@ -3117,6 +3326,23 @@
       ]
     },
     {
+      "id": "migrate/multifile/handle.go:21:2",
+      "handles": [
+        "js (migrate/multifile/handle.go:21:2)"
+      ],
+      "one_commit": true,
+      "steps": [
+        "S33",
+        "S34",
+        "S35",
+        "S36"
+      ],
+      "sites": [
+        "migrate/multifile/handle.go:21:13",
+        "migrate/multifile/handle.go:25:15"
+      ]
+    },
+    {
       "id": "migrate/objects/objects.go:23:2",
       "handles": [
         "js (migrate/objects/objects.go:23:2)",
@@ -3124,11 +3350,11 @@
       ],
       "one_commit": true,
       "steps": [
-        "S33",
-        "S34",
-        "S35",
-        "S36",
-        "S37"
+        "S37",
+        "S38",
+        "S39",
+        "S40",
+        "S41"
       ],
       "sites": [
         "migrate/objects/objects.go:23:13",
@@ -3138,15 +3364,31 @@
       ]
     },
     {
+      "id": "migrate/order/order.go:26:11",
+      "handles": [
+        "js (migrate/order/order.go:26:11)"
+      ],
+      "steps": [
+        "S42",
+        "S43",
+        "S44",
+        "S45"
+      ],
+      "sites": [
+        "migrate/order/order.go:26:11",
+        "migrate/order/order.go:27:14"
+      ]
+    },
+    {
       "id": "migrate/scenarios/corpus.go:26:2",
       "handles": [
         "js (migrate/scenarios/corpus.go:26:2)"
       ],
       "steps": [
-        "S38",
-        "S39",
-        "S40",
-        "S41"
+        "S46",
+        "S47",
+        "S48",
+        "S49"
       ],
       "sites": [
         "migrate/scenarios/corpus.go:26:13",
@@ -3160,10 +3402,10 @@
       ],
       "one_commit": true,
       "steps": [
-        "S42",
-        "S43",
-        "S44",
-        "S45"
+        "S50",
+        "S51",
+        "S52",
+        "S53"
       ],
       "sites": [
         "migrate/scenarios/corpus.go:35:37",
@@ -3179,10 +3421,10 @@
       ],
       "one_commit": true,
       "steps": [
-        "S46",
-        "S47",
-        "S48",
-        "S49"
+        "S54",
+        "S55",
+        "S56",
+        "S57"
       ],
       "sites": [
         "migrate/scenarios/corpus.go:43:33",
@@ -3198,9 +3440,9 @@
       ],
       "one_commit": true,
       "steps": [
-        "S50",
-        "S51",
-        "S52"
+        "S58",
+        "S59",
+        "S60"
       ],
       "sites": [
         "migrate/scenarios/corpus.go:61:24"
@@ -3212,10 +3454,10 @@
         "js (migrate/scenarios/corpus.go:65:2)"
       ],
       "steps": [
-        "S53",
-        "S54",
-        "S55",
-        "S56"
+        "S61",
+        "S62",
+        "S63",
+        "S64"
       ],
       "sites": [
         "migrate/scenarios/corpus.go:66:9"
@@ -3227,10 +3469,10 @@
         "js (migrate/scenarios/corpus.go:72:16)"
       ],
       "steps": [
-        "S57",
-        "S58",
-        "S59",
-        "S60"
+        "S65",
+        "S66",
+        "S67",
+        "S68"
       ],
       "sites": [
         "migrate/scenarios/corpus.go:72:16",
@@ -3243,9 +3485,9 @@
         "js (migrate/scenarios/corpus.go:85:2)"
       ],
       "steps": [
-        "S61",
-        "S62",
-        "S63"
+        "S69",
+        "S70",
+        "S71"
       ],
       "sites": [
         "migrate/scenarios/corpus.go:85:13",
@@ -3258,10 +3500,10 @@
         "kv (migrate/scenarios/corpus.go:94:2)"
       ],
       "steps": [
-        "S64",
-        "S65",
-        "S66",
-        "S67"
+        "S72",
+        "S73",
+        "S74",
+        "S75"
       ],
       "sites": [
         "migrate/scenarios/corpus.go:98:12"
@@ -3274,10 +3516,10 @@
       ],
       "one_commit": true,
       "steps": [
-        "S68",
-        "S69",
-        "S70",
-        "S71"
+        "S76",
+        "S77",
+        "S78",
+        "S79"
       ],
       "sites": [
         "migrate/scenarios/scenarios.go:25:33",
@@ -3292,10 +3534,10 @@
       ],
       "one_commit": true,
       "steps": [
-        "S72",
-        "S73",
-        "S74",
-        "S75"
+        "S80",
+        "S81",
+        "S82",
+        "S83"
       ],
       "sites": [
         "migrate/scenarios/scenarios.go:33:25",
@@ -3310,10 +3552,10 @@
       ],
       "one_commit": true,
       "steps": [
-        "S76",
-        "S77",
-        "S78",
-        "S79"
+        "S84",
+        "S85",
+        "S86",
+        "S87"
       ],
       "sites": [
         "migrate/scenarios/scenarios.go:39:11",
@@ -3326,10 +3568,10 @@
         "js (migrate/scenarios/scenarios.go:44:12)"
       ],
       "steps": [
-        "S80",
-        "S81",
-        "S82",
-        "S83"
+        "S88",
+        "S89",
+        "S90",
+        "S91"
       ],
       "sites": [
         "migrate/scenarios/scenarios.go:44:12",
@@ -3343,10 +3585,10 @@
       ],
       "one_commit": true,
       "steps": [
-        "S84",
-        "S85",
-        "S86",
-        "S87"
+        "S92",
+        "S93",
+        "S94",
+        "S95"
       ],
       "sites": [
         "migrate/scenarios/scenarios.go:50:36",
@@ -3360,10 +3602,10 @@
       ],
       "one_commit": true,
       "steps": [
-        "S88",
-        "S89",
-        "S90",
-        "S91"
+        "S96",
+        "S97",
+        "S98",
+        "S99"
       ],
       "sites": [
         "migrate/scenarios/scenarios.go:56:11",
@@ -3377,10 +3619,10 @@
       ],
       "one_commit": true,
       "steps": [
-        "S92",
-        "S93",
-        "S94",
-        "S95"
+        "S100",
+        "S101",
+        "S102",
+        "S103"
       ],
       "sites": [
         "migrate/scenarios/scenarios.go:61:12",
@@ -3394,10 +3636,10 @@
       ],
       "one_commit": true,
       "steps": [
-        "S96",
-        "S97",
-        "S98",
-        "S99"
+        "S104",
+        "S105",
+        "S106",
+        "S107"
       ],
       "sites": [
         "migrate/scenarios/scenarios.go:71:11",
@@ -3410,10 +3652,10 @@
         "js (migrate/scenarios/scenarios.go:81:35)"
       ],
       "steps": [
-        "S100",
-        "S101",
-        "S102",
-        "S103"
+        "S108",
+        "S109",
+        "S110",
+        "S111"
       ],
       "sites": [
         "migrate/scenarios/scenarios.go:81:35",
@@ -3428,10 +3670,10 @@
       ],
       "one_commit": true,
       "steps": [
-        "S104",
-        "S105",
-        "S106",
-        "S107"
+        "S112",
+        "S113",
+        "S114",
+        "S115"
       ],
       "sites": [
         "migrate/scenarios/scenarios.go:88:13",
@@ -3446,10 +3688,10 @@
       ],
       "one_commit": true,
       "steps": [
-        "S108",
-        "S109",
-        "S110",
-        "S111"
+        "S116",
+        "S117",
+        "S118",
+        "S119"
       ],
       "sites": [
         "migrate/scenarios/scenarios.go:104:34",
@@ -3465,10 +3707,10 @@
       ],
       "one_commit": true,
       "steps": [
-        "S112",
-        "S113",
-        "S114",
-        "S115"
+        "S120",
+        "S121",
+        "S122",
+        "S123"
       ],
       "sites": [
         "migrate/scenarios/scenarios.go:112:34",
@@ -3483,10 +3725,10 @@
         "js (migrate/scenarios/scenarios.go:122:31)"
       ],
       "steps": [
-        "S116",
-        "S117",
-        "S118",
-        "S119"
+        "S124",
+        "S125",
+        "S126",
+        "S127"
       ],
       "sites": [
         "migrate/scenarios/scenarios.go:122:31",
@@ -4298,7 +4540,7 @@
         "an unnamed JetStreamContext declaration; name it to thread a jetstream.JetStream next to it"
       ],
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S120"
+      "step": "S128"
     },
     {
       "id": "migrate/legacyonly/legacyonly.go:19:9",
@@ -4321,7 +4563,7 @@
         "UseLegacyDurableConsumers: the jetstream package always uses the consumer create API; there is no legacy mode"
       ],
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S126"
+      "step": "S135"
     },
     {
       "id": "migrate/legacytests/legacy_test.go:27:13",
@@ -4361,6 +4603,41 @@
       "step": "S30"
     },
     {
+      "id": "migrate/multifile/handle.go:21:13",
+      "component": "migrate/multifile/handle.go:21:2",
+      "position": {
+        "file": "migrate/multifile/handle.go",
+        "line": 21,
+        "column": 13
+      },
+      "symbols": [
+        "nats.Conn.JetStream"
+      ],
+      "class": "mechanical",
+      "summary": "nc.JetStream becomes jetstream.New",
+      "before": "js, err := nc.JetStream()",
+      "after": "js, err := nc.JetStream()\njsNew, err := jetstream.New(nc)\nif err != nil {\n\treturn 0, err\n}",
+      "reference": "jetstream/MIGRATION.md#initialization-options",
+      "step": "S33"
+    },
+    {
+      "id": "migrate/multifile/handle.go:25:15",
+      "component": "migrate/multifile/handle.go:21:2",
+      "position": {
+        "file": "migrate/multifile/handle.go",
+        "line": 25,
+        "column": 15
+      },
+      "symbols": [
+        "nats.JetStreamManager.AccountInfo"
+      ],
+      "class": "mechanical",
+      "summary": "JetStreamManager.AccountInfo becomes JetStream.AccountInfo",
+      "before": "info, err := js.AccountInfo()",
+      "after": "info, err := jsNew.AccountInfo(context.Background())",
+      "step": "S34"
+    },
+    {
       "id": "migrate/objects/objects.go:23:13",
       "component": "migrate/objects/objects.go:23:2",
       "position": {
@@ -4376,7 +4653,7 @@
       "before": "js, err := nc.JetStream()",
       "after": "js, err := nc.JetStream()\njsNew, err := jetstream.New(nc)\nif err != nil {\n\treturn nil, err\n}",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S33"
+      "step": "S37"
     },
     {
       "id": "migrate/objects/objects.go:27:14",
@@ -4394,7 +4671,7 @@
       "before": "obj, err := js.ObjectStore(\"files\")",
       "after": "obj, err := js.ObjectStore(\"files\")\nobjNew, err := jsNew.ObjectStore(ctx, \"files\")\nif err != nil {\n\treturn nil, err\n}",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S33"
+      "step": "S37"
     },
     {
       "id": "migrate/objects/objects.go:31:15",
@@ -4412,7 +4689,7 @@
       "before": "_, err := obj.PutBytes(\"a\", data)",
       "after": "_, err := objNew.PutBytes(ctx, \"a\", data)",
       "reference": "jetstream/MIGRATION.md#object-store",
-      "step": "S34"
+      "step": "S38"
     },
     {
       "id": "migrate/objects/objects.go:34:9",
@@ -4430,7 +4707,176 @@
       "before": "return obj.GetBytes(\"a\")",
       "after": "return objNew.GetBytes(ctx, \"a\")",
       "reference": "jetstream/MIGRATION.md#object-store",
-      "step": "S35"
+      "step": "S39"
+    },
+    {
+      "id": "migrate/order/order.go:26:11",
+      "component": "migrate/order/order.go:26:11",
+      "position": {
+        "file": "migrate/order/order.go",
+        "line": 26,
+        "column": 11
+      },
+      "symbols": [
+        "nats.JetStreamContext"
+      ],
+      "class": "mechanical",
+      "summary": "declare jsNew jetstream.JetStream next to js",
+      "before": "js nats.JetStreamContext",
+      "after": "js nats.JetStreamContext, jsNew jetstream.JetStream",
+      "reference": "jetstream/MIGRATION.md#initialization-options",
+      "step": "S42"
+    },
+    {
+      "id": "migrate/order/order.go:27:14",
+      "component": "migrate/order/order.go:26:11",
+      "position": {
+        "file": "migrate/order/order.go",
+        "line": 27,
+        "column": 14
+      },
+      "symbols": [
+        "nats.JetStream.PullSubscribe"
+      ],
+      "class": "guided",
+      "summary": "PullSubscribe becomes a jetstream.Consumer",
+      "before": "sub, err := js.PullSubscribe(\"ORDERS.new\", \"worker\")",
+      "template": "sub, err := func() (jetstream.Consumer, error) {\n\t\tstream, err := jsNew.StreamNameBySubject(context.Background(), \"ORDERS.new\")\n\t\tif err != nil {\n\t\t\treturn nil, err\n\t\t}\n\t\treturn jsNew.CreateOrUpdateConsumer(context.Background(), stream, jetstream.ConsumerConfig{\n\t\t\tDurable: \"worker\",\n\t\t\tFilterSubject: \"ORDERS.new\",\n\t\t})\n\t}()",
+      "facts": [
+        "the subscription sub is used at migrate/order/order.go:31:20 in a way the planner does not rewrite",
+        "the subscription sub is used at migrate/order/order.go:32:10 in a way the planner does not rewrite",
+        "the subscription sub is used at migrate/order/order.go:33:10 in a way the planner does not rewrite"
+      ],
+      "notes": [
+        "the consumer is created with CreateOrUpdateConsumer, as MIGRATION.md does: legacy used an existing durable as it was when the options it set were compatible, CreateOrUpdateConsumer applies the code's full configuration",
+        "legacy Unsubscribe and Drain deleted a durable consumer the library had created; the jetstream package keeps it"
+      ],
+      "reference": "jetstream/MIGRATION.md#replacing-jspullsubscribe",
+      "step": "S43"
+    },
+    {
+      "id": "migrate/order/order.go:37:15",
+      "position": {
+        "file": "migrate/order/order.go",
+        "line": 37,
+        "column": 15
+      },
+      "symbols": [
+        "nats.StreamConfig"
+      ],
+      "class": "mechanical",
+      "summary": "retype nats.StreamConfig as jetstream.StreamConfig",
+      "before": "nats.StreamConfig",
+      "after": "jetstream.StreamConfig",
+      "reference": "jetstream/MIGRATION.md#stream-management",
+      "step": "S129"
+    },
+    {
+      "id": "migrate/order/order.go:37:42",
+      "position": {
+        "file": "migrate/order/order.go",
+        "line": 37,
+        "column": 42
+      },
+      "symbols": [
+        "nats.StreamConfig"
+      ],
+      "class": "mechanical",
+      "summary": "nats.StreamConfig literal becomes jetstream.StreamConfig",
+      "before": "return nats.StreamConfig{}",
+      "after": "return jetstream.StreamConfig{}",
+      "reference": "jetstream/MIGRATION.md#stream-management",
+      "step": "S129"
+    },
+    {
+      "id": "migrate/order/order.go:41:3",
+      "position": {
+        "file": "migrate/order/order.go",
+        "line": 41,
+        "column": 3
+      },
+      "symbols": [
+        "nats.RetentionPolicy"
+      ],
+      "class": "mechanical",
+      "summary": "retype nats.RetentionPolicy as jetstream.RetentionPolicy",
+      "before": "retention nats.RetentionPolicy",
+      "after": "retention jetstream.RetentionPolicy",
+      "step": "S129"
+    },
+    {
+      "id": "migrate/order/order.go:42:3",
+      "position": {
+        "file": "migrate/order/order.go",
+        "line": 42,
+        "column": 3
+      },
+      "symbols": [
+        "nats.StorageType"
+      ],
+      "class": "mechanical",
+      "summary": "retype nats.StorageType as jetstream.StorageType",
+      "before": "storage   nats.StorageType",
+      "after": "storage   jetstream.StorageType",
+      "step": "S129"
+    },
+    {
+      "id": "migrate/order/order.go:43:3",
+      "position": {
+        "file": "migrate/order/order.go",
+        "line": 43,
+        "column": 3
+      },
+      "symbols": [
+        "nats.DiscardPolicy"
+      ],
+      "class": "mechanical",
+      "summary": "retype nats.DiscardPolicy as jetstream.DiscardPolicy",
+      "before": "discard   nats.DiscardPolicy",
+      "after": "discard   jetstream.DiscardPolicy",
+      "step": "S129"
+    },
+    {
+      "id": "migrate/order/order.go:45:15",
+      "position": {
+        "file": "migrate/order/order.go",
+        "line": 45,
+        "column": 15
+      },
+      "symbols": null,
+      "class": "mechanical",
+      "summary": "nats.LimitsPolicy becomes jetstream.LimitsPolicy",
+      "before": "tests := []struct {\n\t\tretention nats.RetentionPolicy\n\t\tstorage   nats.StorageType\n\t\tdiscard   nats.DiscardPolicy\n\t}{\n\t\t{retention: nats.LimitsPolicy, storage: nats.FileStorage, discard: nats.DiscardOld},\n\t}",
+      "after": "tests := []struct {\n\t\tretention nats.RetentionPolicy\n\t\tstorage   nats.StorageType\n\t\tdiscard   nats.DiscardPolicy\n\t}{\n\t\t{retention: jetstream.LimitsPolicy, storage: nats.FileStorage, discard: nats.DiscardOld},\n\t}",
+      "step": "S129"
+    },
+    {
+      "id": "migrate/order/order.go:45:43",
+      "position": {
+        "file": "migrate/order/order.go",
+        "line": 45,
+        "column": 43
+      },
+      "symbols": null,
+      "class": "mechanical",
+      "summary": "nats.FileStorage becomes jetstream.FileStorage",
+      "before": "tests := []struct {\n\t\tretention nats.RetentionPolicy\n\t\tstorage   nats.StorageType\n\t\tdiscard   nats.DiscardPolicy\n\t}{\n\t\t{retention: nats.LimitsPolicy, storage: nats.FileStorage, discard: nats.DiscardOld},\n\t}",
+      "after": "tests := []struct {\n\t\tretention nats.RetentionPolicy\n\t\tstorage   nats.StorageType\n\t\tdiscard   nats.DiscardPolicy\n\t}{\n\t\t{retention: nats.LimitsPolicy, storage: jetstream.FileStorage, discard: nats.DiscardOld},\n\t}",
+      "step": "S129"
+    },
+    {
+      "id": "migrate/order/order.go:45:70",
+      "position": {
+        "file": "migrate/order/order.go",
+        "line": 45,
+        "column": 70
+      },
+      "symbols": null,
+      "class": "mechanical",
+      "summary": "nats.DiscardOld becomes jetstream.DiscardOld",
+      "before": "tests := []struct {\n\t\tretention nats.RetentionPolicy\n\t\tstorage   nats.StorageType\n\t\tdiscard   nats.DiscardPolicy\n\t}{\n\t\t{retention: nats.LimitsPolicy, storage: nats.FileStorage, discard: nats.DiscardOld},\n\t}",
+      "after": "tests := []struct {\n\t\tretention nats.RetentionPolicy\n\t\tstorage   nats.StorageType\n\t\tdiscard   nats.DiscardPolicy\n\t}{\n\t\t{retention: nats.LimitsPolicy, storage: nats.FileStorage, discard: jetstream.DiscardOld},\n\t}",
+      "step": "S129"
     },
     {
       "id": "migrate/scenarios/corpus.go:26:13",
@@ -4453,7 +4899,7 @@
         "ClientTrace is not rewritten by the planner here"
       ],
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S38"
+      "step": "S46"
     },
     {
       "id": "migrate/scenarios/corpus.go:30:9",
@@ -4471,7 +4917,7 @@
       "before": "return js.DeleteStream(\"T\")",
       "after": "return jsNew.DeleteStream(context.Background(), \"T\")",
       "reference": "jetstream/MIGRATION.md#stream-management",
-      "step": "S39"
+      "step": "S47"
     },
     {
       "id": "migrate/scenarios/corpus.go:35:37",
@@ -4487,9 +4933,9 @@
       "class": "mechanical",
       "summary": "declare jsNew jetstream.JetStream next to js",
       "before": "js nats.JetStreamContext",
-      "after": "js nats.JetStreamContext\njsNew jetstream.JetStream",
+      "after": "js nats.JetStreamContext, jsNew jetstream.JetStream",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S42"
+      "step": "S50"
     },
     {
       "id": "migrate/scenarios/corpus.go:36:9",
@@ -4507,7 +4953,7 @@
       "before": "cfg := nats.StreamConfig{Name: \"R\"}",
       "after": "cfg := jetstream.StreamConfig{Name: \"R\"}",
       "reference": "jetstream/MIGRATION.md#stream-management",
-      "step": "S43"
+      "step": "S51"
     },
     {
       "id": "migrate/scenarios/corpus.go:37:18",
@@ -4522,7 +4968,7 @@
       "summary": "nats.WorkQueuePolicy becomes jetstream.WorkQueuePolicy",
       "before": "cfg.Retention = nats.WorkQueuePolicy",
       "after": "cfg.Retention = jetstream.WorkQueuePolicy",
-      "step": "S43"
+      "step": "S51"
     },
     {
       "id": "migrate/scenarios/corpus.go:38:12",
@@ -4540,7 +4986,7 @@
       "before": "_, err := js.AddStream(&cfg)",
       "after": "_, err := jsNew.CreateStream(ctx, cfg)",
       "reference": "jetstream/MIGRATION.md#stream-management",
-      "step": "S43"
+      "step": "S51"
     },
     {
       "id": "migrate/scenarios/corpus.go:43:33",
@@ -4556,9 +5002,9 @@
       "class": "mechanical",
       "summary": "declare jsNew jetstream.JetStream next to js",
       "before": "js nats.JetStreamContext",
-      "after": "js nats.JetStreamContext\njsNew jetstream.JetStream",
+      "after": "js nats.JetStreamContext, jsNew jetstream.JetStream",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S46"
+      "step": "S54"
     },
     {
       "id": "migrate/scenarios/corpus.go:43:60",
@@ -4576,7 +5022,7 @@
       "before": "map[string]*nats.ConsumerInfo",
       "after": "map[string]*jetstream.ConsumerInfo",
       "reference": "jetstream/MIGRATION.md#consumer-management",
-      "step": "S47"
+      "step": "S55"
     },
     {
       "id": "migrate/scenarios/corpus.go:44:26",
@@ -4594,7 +5040,7 @@
       "before": "out := make(map[string]*nats.ConsumerInfo)",
       "after": "out := make(map[string]*jetstream.ConsumerInfo)",
       "reference": "jetstream/MIGRATION.md#consumer-management",
-      "step": "S47"
+      "step": "S55"
     },
     {
       "id": "migrate/scenarios/corpus.go:45:15",
@@ -4615,7 +5061,7 @@
         "the new call first obtains a consumer handle, which sends a CONSUMER.INFO request"
       ],
       "reference": "jetstream/MIGRATION.md#consumer-management",
-      "step": "S47"
+      "step": "S55"
     },
     {
       "id": "migrate/scenarios/corpus.go:58:26",
@@ -4635,7 +5081,7 @@
         "the method belongs to an implementation of nats.KeyWatcher, whose signature would no longer match; migrate the implementation with the interface (regenerate a mock from jetstream.KeyWatcher)"
       ],
       "reference": "jetstream/MIGRATION.md#keyvalue-store",
-      "step": "S121"
+      "step": "S130"
     },
     {
       "id": "migrate/scenarios/corpus.go:61:24",
@@ -4651,9 +5097,9 @@
       "class": "mechanical",
       "summary": "declare kvNew jetstream.KeyValue next to kv",
       "before": "kv nats.KeyValue",
-      "after": "kv nats.KeyValue\nkvNew jetstream.KeyValue",
+      "after": "kv nats.KeyValue, kvNew jetstream.KeyValue",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S50"
+      "step": "S58"
     },
     {
       "id": "migrate/scenarios/corpus.go:61:42",
@@ -4673,7 +5119,7 @@
         "the method belongs to an implementation of nats.KeyWatcher, whose signature would no longer match; migrate the implementation with the interface (regenerate a mock from jetstream.KeyWatcher)"
       ],
       "reference": "jetstream/MIGRATION.md#keyvalue-store",
-      "step": "S122"
+      "step": "S131"
     },
     {
       "id": "migrate/scenarios/corpus.go:65:14",
@@ -4693,7 +5139,7 @@
         "nats.JetStreamContext handles migrate through their declarations and roots; this expression makes one the planner does not thread"
       ],
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S123"
+      "step": "S132"
     },
     {
       "id": "migrate/scenarios/corpus.go:66:9",
@@ -4714,7 +5160,7 @@
         "the handle cannot be threaded: assigned from a multi-value call the planner does not rewrite"
       ],
       "reference": "jetstream/MIGRATION.md#stream-management",
-      "step": "S54"
+      "step": "S62"
     },
     {
       "id": "migrate/scenarios/corpus.go:70:21",
@@ -4734,7 +5180,7 @@
         "an unnamed JetStreamContext declaration; name it to thread a jetstream.JetStream next to it"
       ],
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S124"
+      "step": "S133"
     },
     {
       "id": "migrate/scenarios/corpus.go:72:16",
@@ -4755,7 +5201,7 @@
         "the handle cannot be threaded: a caller passes it a value that is not a handle variable (fakeJS{})"
       ],
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S57"
+      "step": "S65"
     },
     {
       "id": "migrate/scenarios/corpus.go:73:9",
@@ -4776,7 +5222,7 @@
         "the handle cannot be threaded: a caller passes it a value that is not a handle variable (fakeJS{})"
       ],
       "reference": "jetstream/MIGRATION.md#stream-management",
-      "step": "S58"
+      "step": "S66"
     },
     {
       "id": "migrate/scenarios/corpus.go:84:39",
@@ -4796,7 +5242,7 @@
         "an unnamed KeyValue declaration; name it to thread a jetstream.KeyValue next to it"
       ],
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S125"
+      "step": "S134"
     },
     {
       "id": "migrate/scenarios/corpus.go:85:13",
@@ -4814,7 +5260,7 @@
       "before": "js, err := f.nc.JetStream()",
       "after": "js, err := f.nc.JetStream()\njsNew, err := jetstream.New(f.nc)\nif err != nil {\n\treturn nil, err\n}",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S61"
+      "step": "S69"
     },
     {
       "id": "migrate/scenarios/corpus.go:89:9",
@@ -4835,7 +5281,7 @@
         "the handle is not assigned to a variable next to its error; assign it (js, err := ...) so a sibling can be created"
       ],
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S61"
+      "step": "S69"
     },
     {
       "id": "migrate/scenarios/corpus.go:98:12",
@@ -4857,7 +5303,7 @@
         "the handle cannot be threaded: assigned from a multi-value call the planner does not rewrite"
       ],
       "reference": "jetstream/MIGRATION.md#keyvalue-store",
-      "step": "S65"
+      "step": "S73"
     },
     {
       "id": "migrate/scenarios/scenarios.go:25:33",
@@ -4875,7 +5321,7 @@
       "before": "js nats.JetStreamContext",
       "after": "js nats.JetStreamContext, jsNew jetstream.JetStream",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S68"
+      "step": "S76"
     },
     {
       "id": "migrate/scenarios/scenarios.go:25:59",
@@ -4893,7 +5339,7 @@
       "before": "cfg nats.StreamConfig",
       "after": "cfg jetstream.StreamConfig",
       "reference": "jetstream/MIGRATION.md#stream-management",
-      "step": "S69"
+      "step": "S77"
     },
     {
       "id": "migrate/scenarios/scenarios.go:26:12",
@@ -4911,7 +5357,7 @@
       "before": "_, err := js.AddStream(&cfg)",
       "after": "_, err := jsNew.CreateStream(ctx, cfg)",
       "reference": "jetstream/MIGRATION.md#stream-management",
-      "step": "S69"
+      "step": "S77"
     },
     {
       "id": "migrate/scenarios/scenarios.go:33:25",
@@ -4929,7 +5375,7 @@
       "before": "js nats.JetStreamContext",
       "after": "js nats.JetStreamContext, jsNew jetstream.JetStream",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S72"
+      "step": "S80"
     },
     {
       "id": "migrate/scenarios/scenarios.go:33:51",
@@ -4947,7 +5393,7 @@
       "before": "cfg nats.StreamConfig",
       "after": "cfg jetstream.StreamConfig",
       "reference": "jetstream/MIGRATION.md#stream-management",
-      "step": "S73"
+      "step": "S81"
     },
     {
       "id": "migrate/scenarios/scenarios.go:34:12",
@@ -4966,7 +5412,7 @@
       "before": "_, err := js.AddStream(&cfg, nats.Context(r.ctx))",
       "after": "_, err := jsNew.CreateStream(r.ctx, cfg)",
       "reference": "jetstream/MIGRATION.md#stream-management",
-      "step": "S73"
+      "step": "S81"
     },
     {
       "id": "migrate/scenarios/scenarios.go:39:11",
@@ -4984,7 +5430,7 @@
       "before": "js nats.JetStreamContext",
       "after": "js nats.JetStreamContext, jsNew jetstream.JetStream",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S76"
+      "step": "S84"
     },
     {
       "id": "migrate/scenarios/scenarios.go:40:9",
@@ -5002,7 +5448,7 @@
       "before": "return js.DeleteStream(\"S\")",
       "after": "return jsNew.DeleteStream(context.Background(), \"S\")",
       "reference": "jetstream/MIGRATION.md#stream-management",
-      "step": "S77"
+      "step": "S85"
     },
     {
       "id": "migrate/scenarios/scenarios.go:44:12",
@@ -5020,7 +5466,7 @@
       "before": "js nats.JetStreamContext",
       "after": "js nats.JetStreamContext, jsNew jetstream.JetStream",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S80"
+      "step": "S88"
     },
     {
       "id": "migrate/scenarios/scenarios.go:45:9",
@@ -5042,7 +5488,7 @@
         "a per-call nats.MaxWait becomes a context with that timeout: ctx, cancel := context.WithTimeout(ctx, d); defer cancel()"
       ],
       "reference": "jetstream/MIGRATION.md#stream-management",
-      "step": "S81"
+      "step": "S89"
     },
     {
       "id": "migrate/scenarios/scenarios.go:50:36",
@@ -5060,7 +5506,7 @@
       "before": "js nats.JetStreamContext",
       "after": "js nats.JetStreamContext, jsNew jetstream.JetStream",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S84"
+      "step": "S92"
     },
     {
       "id": "migrate/scenarios/scenarios.go:51:12",
@@ -5082,7 +5528,7 @@
         "legacy AddConsumer is create-only: it returns an identical existing consumer and fails with ErrConsumerNameAlreadyInUse otherwise"
       ],
       "reference": "jetstream/MIGRATION.md#consumer-management",
-      "step": "S85"
+      "step": "S93"
     },
     {
       "id": "migrate/scenarios/scenarios.go:56:11",
@@ -5100,7 +5546,7 @@
       "before": "js nats.JetStreamContext",
       "after": "js nats.JetStreamContext, jsNew jetstream.JetStream",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S88"
+      "step": "S96"
     },
     {
       "id": "migrate/scenarios/scenarios.go:57:9",
@@ -5118,7 +5564,7 @@
       "before": "return js.StreamNameBySubject(\"orders.new\")",
       "after": "return jsNew.StreamNameBySubject(context.Background(), \"orders.new\")",
       "reference": "jetstream/MIGRATION.md#stream-management",
-      "step": "S89"
+      "step": "S97"
     },
     {
       "id": "migrate/scenarios/scenarios.go:61:12",
@@ -5136,7 +5582,7 @@
       "before": "js nats.JetStreamContext",
       "after": "js nats.JetStreamContext, jsNew jetstream.JetStream",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S92"
+      "step": "S100"
     },
     {
       "id": "migrate/scenarios/scenarios.go:62:14",
@@ -5162,7 +5608,7 @@
         "legacy Unsubscribe and Drain deleted a durable consumer the library had created; the jetstream package keeps it"
       ],
       "reference": "jetstream/MIGRATION.md#replacing-jspullsubscribe",
-      "step": "S93"
+      "step": "S101"
     },
     {
       "id": "migrate/scenarios/scenarios.go:71:11",
@@ -5180,7 +5626,7 @@
       "before": "js nats.JetStreamContext",
       "after": "js nats.JetStreamContext, jsNew jetstream.JetStream",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S96"
+      "step": "S104"
     },
     {
       "id": "migrate/scenarios/scenarios.go:72:14",
@@ -5202,7 +5648,7 @@
         "legacy Unsubscribe and Drain deleted a durable consumer the library had created; the jetstream package keeps it"
       ],
       "reference": "jetstream/MIGRATION.md#replacing-jspullsubscribe",
-      "step": "S97"
+      "step": "S105"
     },
     {
       "id": "migrate/scenarios/scenarios.go:81:35",
@@ -5220,7 +5666,7 @@
       "before": "js nats.JetStreamContext",
       "after": "js nats.JetStreamContext, jsNew jetstream.JetStream",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S100"
+      "step": "S108"
     },
     {
       "id": "migrate/scenarios/scenarios.go:82:12",
@@ -5288,7 +5734,7 @@
         }
       ],
       "reference": "jetstream/MIGRATION.md#replacing-jssubscribe",
-      "step": "S101"
+      "step": "S109"
     },
     {
       "id": "migrate/scenarios/scenarios.go:88:13",
@@ -5306,7 +5752,7 @@
       "before": "js, err := nc.JetStream()",
       "after": "js, err := nc.JetStream()\njsNew, err := jetstream.New(nc)\nif err != nil {\n\treturn nil, err\n}",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S104"
+      "step": "S112"
     },
     {
       "id": "migrate/scenarios/scenarios.go:92:13",
@@ -5325,7 +5771,7 @@
       "before": "kv, err := js.CreateKeyValue(&nats.KeyValueConfig{Bucket: \"settings\"})",
       "after": "kv, err := js.CreateKeyValue(&nats.KeyValueConfig{Bucket: \"settings\"})\nkvNew, err := jsNew.KeyValue(context.Background(), \"settings\")\nif err != nil {\n\treturn nil, err\n}",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S104"
+      "step": "S112"
     },
     {
       "id": "migrate/scenarios/scenarios.go:96:12",
@@ -5344,7 +5790,7 @@
       "before": "e, err := kv.Get(\"a\")",
       "after": "e, err := kvNew.Get(context.Background(), \"a\")",
       "reference": "jetstream/MIGRATION.md#keyvalue-store",
-      "step": "S105"
+      "step": "S113"
     },
     {
       "id": "migrate/scenarios/scenarios.go:104:34",
@@ -5362,7 +5808,7 @@
       "before": "js nats.JetStreamContext",
       "after": "js nats.JetStreamContext, jsNew jetstream.JetStream",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S108"
+      "step": "S116"
     },
     {
       "id": "migrate/scenarios/scenarios.go:105:9",
@@ -5380,7 +5826,7 @@
       "before": "cfg := nats.ConsumerConfig{Durable: \"c\", AckPolicy: nats.AckExplicitPolicy}",
       "after": "cfg := jetstream.ConsumerConfig{Durable: \"c\", AckPolicy: nats.AckExplicitPolicy}",
       "reference": "jetstream/MIGRATION.md#consumer-management",
-      "step": "S109"
+      "step": "S117"
     },
     {
       "id": "migrate/scenarios/scenarios.go:105:54",
@@ -5395,7 +5841,7 @@
       "summary": "nats.AckExplicitPolicy becomes jetstream.AckExplicitPolicy",
       "before": "cfg := nats.ConsumerConfig{Durable: \"c\", AckPolicy: nats.AckExplicitPolicy}",
       "after": "cfg := nats.ConsumerConfig{Durable: \"c\", AckPolicy: jetstream.AckExplicitPolicy}",
-      "step": "S109"
+      "step": "S117"
     },
     {
       "id": "migrate/scenarios/scenarios.go:107:12",
@@ -5416,7 +5862,7 @@
         "legacy AddConsumer is create-only: it returns an identical existing consumer and fails with ErrConsumerNameAlreadyInUse otherwise"
       ],
       "reference": "jetstream/MIGRATION.md#consumer-management",
-      "step": "S109"
+      "step": "S117"
     },
     {
       "id": "migrate/scenarios/scenarios.go:112:34",
@@ -5434,7 +5880,7 @@
       "before": "js nats.JetStreamContext",
       "after": "js nats.JetStreamContext, jsNew jetstream.JetStream",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S112"
+      "step": "S120"
     },
     {
       "id": "migrate/scenarios/scenarios.go:113:9",
@@ -5449,7 +5895,7 @@
       "summary": "nats.AckNonePolicy becomes jetstream.AckNonePolicy",
       "before": "ack := nats.AckNonePolicy",
       "after": "ack := jetstream.AckNonePolicy",
-      "step": "S113"
+      "step": "S121"
     },
     {
       "id": "migrate/scenarios/scenarios.go:115:9",
@@ -5464,7 +5910,7 @@
       "summary": "nats.AckExplicitPolicy becomes jetstream.AckExplicitPolicy",
       "before": "ack = nats.AckExplicitPolicy",
       "after": "ack = jetstream.AckExplicitPolicy",
-      "step": "S113"
+      "step": "S121"
     },
     {
       "id": "migrate/scenarios/scenarios.go:117:12",
@@ -5486,7 +5932,7 @@
         "legacy AddConsumer is create-only: it returns an identical existing consumer and fails with ErrConsumerNameAlreadyInUse otherwise"
       ],
       "reference": "jetstream/MIGRATION.md#consumer-management",
-      "step": "S113"
+      "step": "S121"
     },
     {
       "id": "migrate/scenarios/scenarios.go:122:31",
@@ -5504,7 +5950,7 @@
       "before": "js nats.JetStreamContext",
       "after": "js nats.JetStreamContext, jsNew jetstream.JetStream",
       "reference": "jetstream/MIGRATION.md#initialization-options",
-      "step": "S116"
+      "step": "S124"
     },
     {
       "id": "migrate/scenarios/scenarios.go:123:12",
@@ -5573,7 +6019,7 @@
         }
       ],
       "reference": "jetstream/MIGRATION.md#replacing-jssubscribe",
-      "step": "S117"
+      "step": "S125"
     },
     {
       "id": "migrate/worker/worker.go:21:12",
@@ -5669,6 +6115,11 @@
         "line": 44,
         "column": 31
       }
+    },
+    {
+      "site": "migrate/order/order.go:27:14",
+      "kind": "stream-name",
+      "summary": "replace the runtime StreamNameBySubject lookup with the stream's name"
     },
     {
       "site": "migrate/scenarios/scenarios.go:72:14",

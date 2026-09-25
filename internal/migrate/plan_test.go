@@ -519,6 +519,31 @@ func TestSkillVersion(t *testing.T) {
 	}
 }
 
+// TestPlanDeterministic plans a tree whose facts come from several uses and
+// several values repeatedly: the plan must not depend on map order, and
+// must name module files by their relative paths.
+func TestPlanDeterministic(t *testing.T) {
+	var first []byte
+	for range 10 {
+		var b bytes.Buffer
+		if err := writeJSON(&b, planFor(t, nil, "./migrate/order")); err != nil {
+			t.Fatal(err)
+		}
+		if first == nil {
+			first = b.Bytes()
+		} else if !bytes.Equal(b.Bytes(), first) {
+			t.Fatalf("two plans of the same tree differ:\n%s\n---\n%s", first, b.Bytes())
+		}
+	}
+	abs, err := filepath.Abs(testdataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(first, []byte(abs)) {
+		t.Errorf("the plan names absolute paths under %s:\n%s", abs, first)
+	}
+}
+
 func TestHelperHandle(t *testing.T) {
 	plan := planFor(t, nil, "./migrate/scenarios")
 	get := siteWith(t, plan, "migrate/scenarios/corpus.go", `kv.Get("a")`)

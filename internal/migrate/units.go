@@ -124,6 +124,7 @@ func (p *planner) buildUnits() []*unit {
 	}
 	union := func(a, b objKey) { parent[find(b)] = find(a) }
 	facts := make(map[objKey][]string)
+	var factKeys []objKey // in source order
 	var extra []struct {
 		k  objKey
 		it intent
@@ -172,6 +173,9 @@ func (p *planner) buildUnits() []*unit {
 					union(k, l)
 				}
 				for _, pr := range rw.problems {
+					if _, ok := facts[k]; !ok {
+						factKeys = append(factKeys, k)
+					}
 					facts[k] = append(facts[k], pr.reason)
 				}
 				for _, it := range rw.extra {
@@ -227,10 +231,10 @@ func (p *planner) buildUnits() []*unit {
 		u.sites = append(u.sites, c)
 		c.unit = u
 	}
-	for g, fs := range facts {
+	for _, g := range factKeys {
 		if c, ok := byGroup[find(g)]; ok {
 			u := c.unit
-			u.facts = append(u.facts, fs...)
+			u.facts = append(u.facts, facts[g]...)
 		}
 	}
 	for _, e := range extra {

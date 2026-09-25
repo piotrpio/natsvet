@@ -4,9 +4,9 @@ Read `natsvet migrate skill` before acting on this plan. Plan schema version 1; 
 
 ## Summary
 
-- Legacy uses: 124 in 91 sites
-- Mechanical: 67, guided: 16, decision: 7, unmapped: 1, skipped: 0
-- Components: 27, steps: 127
+- Legacy uses: 133 in 103 sites
+- Mechanical: 78, guided: 17, decision: 7, unmapped: 1, skipped: 0
+- Components: 29, steps: 136
 
 ## Pending decisions
 
@@ -17,7 +17,7 @@ Ask the user each question, record the answer in natsvet-migrate.json, and plan 
 - **shared-handler** (module, 1 site): the handler also serves a core subscription, which keeps receiving *nats.Msg. Options: split, adapter. Default: **split**.
 - **subscribe-target** (module, 7 sites): the jetstream package is built around pull consumers, which is why teams migrate. Options: pull, push, defer. Default: **pull**.
 - **subscribe-target** (site:migrate/app/subscribe.go:41:14, 1 site): the subscription binds an existing consumer, which legacy Subscribe requires to be a push consumer; pull would fail until the consumer is recreated. Options: pull, push, defer. Default: **push**.
-- **component** (module, 27 components): skip keeps code that must stay on the legacy API (tests of the legacy API, compatibility shims) out of the steps; the steps assume migrate until answered. Options: migrate, skip. Default: **migrate**.
+- **component** (module, 29 components): skip keeps code that must stay on the legacy API (tests of the legacy API, compatibility shims) out of the steps; the steps assume migrate until answered. Options: migrate, skip. Default: **migrate**.
 
 ## Component migrate/app/app.go:32:2
 
@@ -974,12 +974,96 @@ if err != nil {
 rename each sibling to its legacy name: jsNew → js.
 
 
+## Component migrate/multifile/handle.go:21:2
+
+Handles: js (migrate/multifile/handle.go:21:2). Safe to apply in one commit.
+
+
+### Step S33 (add-handle, machine edits)
+
+create the jetstream siblings jsNew next to the legacy handles.
+
+
+#### Site migrate/multifile/handle.go:21:13: mechanical
+
+nc.JetStream becomes jetstream.New. See jetstream/MIGRATION.md#initialization-options.
+
+Before:
+
+```go
+js, err := nc.JetStream()
+```
+
+After:
+
+```go
+js, err := nc.JetStream()
+jsNew, err := jetstream.New(nc)
+if err != nil {
+	return 0, err
+}
+```
+
+
+### Step S34 (site, machine edits)
+
+JetStreamManager.AccountInfo becomes JetStream.AccountInfo.
+
+
+#### Site migrate/multifile/handle.go:25:15: mechanical
+
+JetStreamManager.AccountInfo becomes JetStream.AccountInfo.
+
+Before:
+
+```go
+info, err := js.AccountInfo()
+```
+
+After:
+
+```go
+info, err := jsNew.AccountInfo(context.Background())
+```
+
+
+### Step S35 (remove-legacy, machine edits)
+
+remove the legacy handles, their roots and the values threaded into them.
+
+
+#### Site migrate/multifile/handle.go:21:13: mechanical
+
+nc.JetStream becomes jetstream.New. See jetstream/MIGRATION.md#initialization-options.
+
+Before:
+
+```go
+js, err := nc.JetStream()
+```
+
+After:
+
+```go
+js, err := nc.JetStream()
+jsNew, err := jetstream.New(nc)
+if err != nil {
+	return 0, err
+}
+```
+
+
+### Step S36 (rename, machine edits)
+
+rename each sibling to its legacy name: jsNew → js.
+
+
 ## Component migrate/objects/objects.go:23:2
 
 Handles: js (migrate/objects/objects.go:23:2), obj (migrate/objects/objects.go:27:2). Safe to apply in one commit.
 
 
-### Step S33 (add-handle, machine edits)
+### Step S37 (add-handle, machine edits)
 
 create the jetstream siblings jsNew, objNew next to the legacy handles.
 
@@ -1026,7 +1110,7 @@ if err != nil {
 ```
 
 
-### Step S34 (site, machine edits)
+### Step S38 (site, machine edits)
 
 ObjectStore.PutBytes becomes ObjectStore.PutBytes.
 
@@ -1048,7 +1132,7 @@ _, err := objNew.PutBytes(ctx, "a", data)
 ```
 
 
-### Step S35 (site, machine edits)
+### Step S39 (site, machine edits)
 
 ObjectStore.GetBytes becomes ObjectStore.GetBytes.
 
@@ -1070,7 +1154,7 @@ return objNew.GetBytes(ctx, "a")
 ```
 
 
-### Step S36 (remove-legacy, machine edits)
+### Step S40 (remove-legacy, machine edits)
 
 remove the legacy handles, their roots and the values threaded into them.
 
@@ -1117,9 +1201,99 @@ if err != nil {
 ```
 
 
-### Step S37 (rename, machine edits)
+### Step S41 (rename, machine edits)
 
 rename each sibling to its legacy name: jsNew → js, objNew → obj.
+
+
+## Component migrate/order/order.go:26:11
+
+Handles: js (migrate/order/order.go:26:11).
+
+
+### Step S42 (add-handle, machine edits)
+
+create the jetstream siblings jsNew next to the legacy handles.
+
+
+#### Site migrate/order/order.go:26:11: mechanical
+
+declare jsNew jetstream.JetStream next to js. See jetstream/MIGRATION.md#initialization-options.
+
+Before:
+
+```go
+js nats.JetStreamContext
+```
+
+After:
+
+```go
+js nats.JetStreamContext, jsNew jetstream.JetStream
+```
+
+
+### Step S43 (site)
+
+PullSubscribe becomes a jetstream.Consumer.
+
+
+#### Site migrate/order/order.go:27:14: guided
+
+PullSubscribe becomes a jetstream.Consumer. See jetstream/MIGRATION.md#replacing-jspullsubscribe.
+
+Before:
+
+```go
+sub, err := js.PullSubscribe("ORDERS.new", "worker")
+```
+
+Template:
+
+```go
+sub, err := func() (jetstream.Consumer, error) {
+		stream, err := jsNew.StreamNameBySubject(context.Background(), "ORDERS.new")
+		if err != nil {
+			return nil, err
+		}
+		return jsNew.CreateOrUpdateConsumer(context.Background(), stream, jetstream.ConsumerConfig{
+			Durable: "worker",
+			FilterSubject: "ORDERS.new",
+		})
+	}()
+```
+
+- Fact: the subscription sub is used at migrate/order/order.go:31:20 in a way the planner does not rewrite
+- Fact: the subscription sub is used at migrate/order/order.go:32:10 in a way the planner does not rewrite
+- Fact: the subscription sub is used at migrate/order/order.go:33:10 in a way the planner does not rewrite
+- Note: the consumer is created with CreateOrUpdateConsumer, as MIGRATION.md does: legacy used an existing durable as it was when the options it set were compatible, CreateOrUpdateConsumer applies the code's full configuration
+- Note: legacy Unsubscribe and Drain deleted a durable consumer the library had created; the jetstream package keeps it
+
+### Step S44 (remove-legacy)
+
+remove the legacy handles, their roots and the values threaded into them. Waits on: migrate/order/order.go:27:14.
+
+
+#### Site migrate/order/order.go:26:11: mechanical
+
+declare jsNew jetstream.JetStream next to js. See jetstream/MIGRATION.md#initialization-options.
+
+Before:
+
+```go
+js nats.JetStreamContext
+```
+
+After:
+
+```go
+js nats.JetStreamContext, jsNew jetstream.JetStream
+```
+
+
+### Step S45 (rename)
+
+rename each sibling to its legacy name: jsNew → js. Waits on: migrate/order/order.go:27:14.
 
 
 ## Component migrate/scenarios/corpus.go:26:2
@@ -1127,7 +1301,7 @@ rename each sibling to its legacy name: jsNew → js, objNew → obj.
 Handles: js (migrate/scenarios/corpus.go:26:2).
 
 
-### Step S38 (add-handle)
+### Step S46 (add-handle)
 
 create the jetstream siblings jsNew next to the legacy handles.
 
@@ -1151,7 +1325,7 @@ js, err := nc.JetStream(&nats.ClientTrace{})
 - Fact: option &nats.ClientTrace{} is not a direct call of a legacy option
 - Fact: ClientTrace is not rewritten by the planner here
 
-### Step S39 (site)
+### Step S47 (site)
 
 JetStreamManager.DeleteStream becomes JetStream.DeleteStream. Waits on: migrate/scenarios/corpus.go:26:13.
 
@@ -1173,7 +1347,7 @@ return jsNew.DeleteStream(context.Background(), "T")
 ```
 
 
-### Step S40 (remove-legacy)
+### Step S48 (remove-legacy)
 
 remove the legacy handles, their roots and the values threaded into them. Waits on: migrate/scenarios/corpus.go:26:13.
 
@@ -1197,7 +1371,7 @@ js, err := nc.JetStream(&nats.ClientTrace{})
 - Fact: option &nats.ClientTrace{} is not a direct call of a legacy option
 - Fact: ClientTrace is not rewritten by the planner here
 
-### Step S41 (rename)
+### Step S49 (rename)
 
 rename each sibling to its legacy name: jsNew → js. Waits on: migrate/scenarios/corpus.go:26:13.
 
@@ -1207,7 +1381,7 @@ rename each sibling to its legacy name: jsNew → js. Waits on: migrate/scenario
 Handles: js (migrate/scenarios/corpus.go:35:37). Safe to apply in one commit.
 
 
-### Step S42 (add-handle, machine edits)
+### Step S50 (add-handle, machine edits)
 
 create the jetstream siblings jsNew next to the legacy handles.
 
@@ -1225,12 +1399,11 @@ js nats.JetStreamContext
 After:
 
 ```go
-js nats.JetStreamContext
-jsNew jetstream.JetStream
+js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S43 (site, machine edits)
+### Step S51 (site, machine edits)
 
 nats.StreamConfig literal becomes jetstream.StreamConfig; nats.WorkQueuePolicy becomes jetstream.WorkQueuePolicy; JetStreamManager.AddStream becomes JetStream.CreateStream.
 
@@ -1286,7 +1459,7 @@ _, err := jsNew.CreateStream(ctx, cfg)
 ```
 
 
-### Step S44 (remove-legacy, machine edits)
+### Step S52 (remove-legacy, machine edits)
 
 remove the legacy handles, their roots and the values threaded into them.
 
@@ -1304,12 +1477,11 @@ js nats.JetStreamContext
 After:
 
 ```go
-js nats.JetStreamContext
-jsNew jetstream.JetStream
+js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S45 (rename, machine edits)
+### Step S53 (rename, machine edits)
 
 rename each sibling to its legacy name: jsNew → js.
 
@@ -1319,7 +1491,7 @@ rename each sibling to its legacy name: jsNew → js.
 Handles: js (migrate/scenarios/corpus.go:43:33). Safe to apply in one commit.
 
 
-### Step S46 (add-handle, machine edits)
+### Step S54 (add-handle, machine edits)
 
 create the jetstream siblings jsNew next to the legacy handles.
 
@@ -1337,12 +1509,11 @@ js nats.JetStreamContext
 After:
 
 ```go
-js nats.JetStreamContext
-jsNew jetstream.JetStream
+js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S47 (site, machine edits)
+### Step S55 (site, machine edits)
 
 retype nats.ConsumerInfo as jetstream.ConsumerInfo; nats.ConsumerInfo becomes jetstream.ConsumerInfo; JetStreamManager.ConsumerInfo becomes Consumer.Info.
 
@@ -1405,7 +1576,7 @@ info, err := func() (*jetstream.ConsumerInfo, error) {
 
 - Note: the new call first obtains a consumer handle, which sends a CONSUMER.INFO request
 
-### Step S48 (remove-legacy, machine edits)
+### Step S56 (remove-legacy, machine edits)
 
 remove the legacy handles, their roots and the values threaded into them.
 
@@ -1423,12 +1594,11 @@ js nats.JetStreamContext
 After:
 
 ```go
-js nats.JetStreamContext
-jsNew jetstream.JetStream
+js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S49 (rename, machine edits)
+### Step S57 (rename, machine edits)
 
 rename each sibling to its legacy name: jsNew → js.
 
@@ -1438,7 +1608,7 @@ rename each sibling to its legacy name: jsNew → js.
 Handles: kv (migrate/scenarios/corpus.go:61:24). Safe to apply in one commit.
 
 
-### Step S50 (add-handle, machine edits)
+### Step S58 (add-handle, machine edits)
 
 create the jetstream siblings kvNew next to the legacy handles.
 
@@ -1456,12 +1626,11 @@ kv nats.KeyValue
 After:
 
 ```go
-kv nats.KeyValue
-kvNew jetstream.KeyValue
+kv nats.KeyValue, kvNew jetstream.KeyValue
 ```
 
 
-### Step S51 (remove-legacy, machine edits)
+### Step S59 (remove-legacy, machine edits)
 
 remove the legacy handles, their roots and the values threaded into them.
 
@@ -1479,12 +1648,11 @@ kv nats.KeyValue
 After:
 
 ```go
-kv nats.KeyValue
-kvNew jetstream.KeyValue
+kv nats.KeyValue, kvNew jetstream.KeyValue
 ```
 
 
-### Step S52 (rename, machine edits)
+### Step S60 (rename, machine edits)
 
 rename each sibling to its legacy name: kvNew → kv.
 
@@ -1494,15 +1662,15 @@ rename each sibling to its legacy name: kvNew → kv.
 Handles: js (migrate/scenarios/corpus.go:65:2).
 
 
-### Step S53 (add-handle)
+### Step S61 (add-handle)
 
 create the jetstream siblings  next to the legacy handles.
 
 - js at migrate/scenarios/corpus.go:65:2 cannot get a sibling: assigned from a multi-value call the planner does not rewrite
 
-### Step S54 (site)
+### Step S62 (site)
 
-JetStreamManager.DeleteStream becomes JetStream.DeleteStream. Waits on: S53.
+JetStreamManager.DeleteStream becomes JetStream.DeleteStream. Waits on: S61.
 
 
 #### Site migrate/scenarios/corpus.go:66:9: guided
@@ -1523,14 +1691,14 @@ return jsNew.DeleteStream(context.Background(), "A")
 
 - Fact: the handle cannot be threaded: assigned from a multi-value call the planner does not rewrite
 
-### Step S55 (remove-legacy)
+### Step S63 (remove-legacy)
 
-remove the legacy handles, their roots and the values threaded into them. Waits on: S53, migrate/scenarios/corpus.go:66:9.
+remove the legacy handles, their roots and the values threaded into them. Waits on: S61, migrate/scenarios/corpus.go:66:9.
 
 
-### Step S56 (rename)
+### Step S64 (rename)
 
-rename each sibling to its legacy name: jsNew → js. Waits on: S53, migrate/scenarios/corpus.go:66:9.
+rename each sibling to its legacy name: jsNew → js. Waits on: S61, migrate/scenarios/corpus.go:66:9.
 
 
 ## Component migrate/scenarios/corpus.go:72:16
@@ -1538,7 +1706,7 @@ rename each sibling to its legacy name: jsNew → js. Waits on: S53, migrate/sce
 Handles: js (migrate/scenarios/corpus.go:72:16).
 
 
-### Step S57 (add-handle)
+### Step S65 (add-handle)
 
 create the jetstream siblings  next to the legacy handles.
 
@@ -1562,9 +1730,9 @@ js nats.JetStreamContext
 
 - Fact: the handle cannot be threaded: a caller passes it a value that is not a handle variable (fakeJS{})
 
-### Step S58 (site)
+### Step S66 (site)
 
-JetStreamManager.DeleteStream becomes JetStream.DeleteStream. Waits on: S57.
+JetStreamManager.DeleteStream becomes JetStream.DeleteStream. Waits on: S65.
 
 
 #### Site migrate/scenarios/corpus.go:73:9: guided
@@ -1585,9 +1753,9 @@ return jsNew.DeleteStream(context.Background(), "F")
 
 - Fact: the handle cannot be threaded: a caller passes it a value that is not a handle variable (fakeJS{})
 
-### Step S59 (remove-legacy)
+### Step S67 (remove-legacy)
 
-remove the legacy handles, their roots and the values threaded into them. Waits on: S57, migrate/scenarios/corpus.go:72:16, migrate/scenarios/corpus.go:73:9.
+remove the legacy handles, their roots and the values threaded into them. Waits on: S65, migrate/scenarios/corpus.go:72:16, migrate/scenarios/corpus.go:73:9.
 
 
 #### Site migrate/scenarios/corpus.go:72:16: guided
@@ -1608,9 +1776,9 @@ js nats.JetStreamContext
 
 - Fact: the handle cannot be threaded: a caller passes it a value that is not a handle variable (fakeJS{})
 
-### Step S60 (rename)
+### Step S68 (rename)
 
-rename each sibling to its legacy name: jsNew → js. Waits on: S57, migrate/scenarios/corpus.go:72:16, migrate/scenarios/corpus.go:73:9.
+rename each sibling to its legacy name: jsNew → js. Waits on: S65, migrate/scenarios/corpus.go:72:16, migrate/scenarios/corpus.go:73:9.
 
 
 ## Component migrate/scenarios/corpus.go:85:2
@@ -1618,7 +1786,7 @@ rename each sibling to its legacy name: jsNew → js. Waits on: S57, migrate/sce
 Handles: js (migrate/scenarios/corpus.go:85:2).
 
 
-### Step S61 (add-handle)
+### Step S69 (add-handle)
 
 create the jetstream siblings jsNew next to the legacy handles.
 
@@ -1662,7 +1830,7 @@ return js.KeyValue(bucket)
 
 - Fact: the handle is not assigned to a variable next to its error; assign it (js, err := ...) so a sibling can be created
 
-### Step S62 (remove-legacy)
+### Step S70 (remove-legacy)
 
 remove the legacy handles, their roots and the values threaded into them. Waits on: migrate/scenarios/corpus.go:89:9.
 
@@ -1706,7 +1874,7 @@ return js.KeyValue(bucket)
 
 - Fact: the handle is not assigned to a variable next to its error; assign it (js, err := ...) so a sibling can be created
 
-### Step S63 (rename)
+### Step S71 (rename)
 
 rename each sibling to its legacy name: jsNew → js. Waits on: migrate/scenarios/corpus.go:89:9.
 
@@ -1716,15 +1884,15 @@ rename each sibling to its legacy name: jsNew → js. Waits on: migrate/scenario
 Handles: kv (migrate/scenarios/corpus.go:94:2).
 
 
-### Step S64 (add-handle)
+### Step S72 (add-handle)
 
 create the jetstream siblings  next to the legacy handles.
 
 - kv at migrate/scenarios/corpus.go:94:2 cannot get a sibling: assigned from a multi-value call the planner does not rewrite
 
-### Step S65 (site)
+### Step S73 (site)
 
-KeyValue.Get becomes KeyValue.Get. Waits on: S64.
+KeyValue.Get becomes KeyValue.Get. Waits on: S72.
 
 
 #### Site migrate/scenarios/corpus.go:98:12: guided
@@ -1745,14 +1913,14 @@ e, err := kvNew.Get(context.Background(), "a")
 
 - Fact: the handle cannot be threaded: assigned from a multi-value call the planner does not rewrite
 
-### Step S66 (remove-legacy)
+### Step S74 (remove-legacy)
 
-remove the legacy handles, their roots and the values threaded into them. Waits on: S64, migrate/scenarios/corpus.go:98:12.
+remove the legacy handles, their roots and the values threaded into them. Waits on: S72, migrate/scenarios/corpus.go:98:12.
 
 
-### Step S67 (rename)
+### Step S75 (rename)
 
-rename each sibling to its legacy name: kvNew → kv. Waits on: S64, migrate/scenarios/corpus.go:98:12.
+rename each sibling to its legacy name: kvNew → kv. Waits on: S72, migrate/scenarios/corpus.go:98:12.
 
 
 ## Component migrate/scenarios/scenarios.go:25:33
@@ -1760,7 +1928,7 @@ rename each sibling to its legacy name: kvNew → kv. Waits on: S64, migrate/sce
 Handles: js (migrate/scenarios/scenarios.go:25:33). Safe to apply in one commit.
 
 
-### Step S68 (add-handle, machine edits)
+### Step S76 (add-handle, machine edits)
 
 create the jetstream siblings jsNew next to the legacy handles.
 
@@ -1782,7 +1950,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S69 (site, machine edits)
+### Step S77 (site, machine edits)
 
 retype nats.StreamConfig as jetstream.StreamConfig; JetStreamManager.AddStream becomes JetStream.CreateStream.
 
@@ -1821,7 +1989,7 @@ _, err := jsNew.CreateStream(ctx, cfg)
 ```
 
 
-### Step S70 (remove-legacy, machine edits)
+### Step S78 (remove-legacy, machine edits)
 
 remove the legacy handles, their roots and the values threaded into them.
 
@@ -1843,7 +2011,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S71 (rename, machine edits)
+### Step S79 (rename, machine edits)
 
 rename each sibling to its legacy name: jsNew → js.
 
@@ -1853,7 +2021,7 @@ rename each sibling to its legacy name: jsNew → js.
 Handles: js (migrate/scenarios/scenarios.go:33:25). Safe to apply in one commit.
 
 
-### Step S72 (add-handle, machine edits)
+### Step S80 (add-handle, machine edits)
 
 create the jetstream siblings jsNew next to the legacy handles.
 
@@ -1875,7 +2043,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S73 (site, machine edits)
+### Step S81 (site, machine edits)
 
 retype nats.StreamConfig as jetstream.StreamConfig; JetStreamManager.AddStream becomes JetStream.CreateStream.
 
@@ -1914,7 +2082,7 @@ _, err := jsNew.CreateStream(r.ctx, cfg)
 ```
 
 
-### Step S74 (remove-legacy, machine edits)
+### Step S82 (remove-legacy, machine edits)
 
 remove the legacy handles, their roots and the values threaded into them.
 
@@ -1936,7 +2104,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S75 (rename, machine edits)
+### Step S83 (rename, machine edits)
 
 rename each sibling to its legacy name: jsNew → js.
 
@@ -1946,7 +2114,7 @@ rename each sibling to its legacy name: jsNew → js.
 Handles: js (migrate/scenarios/scenarios.go:39:11). Safe to apply in one commit.
 
 
-### Step S76 (add-handle, machine edits)
+### Step S84 (add-handle, machine edits)
 
 create the jetstream siblings jsNew next to the legacy handles.
 
@@ -1968,7 +2136,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S77 (site, machine edits)
+### Step S85 (site, machine edits)
 
 JetStreamManager.DeleteStream becomes JetStream.DeleteStream.
 
@@ -1990,7 +2158,7 @@ return jsNew.DeleteStream(context.Background(), "S")
 ```
 
 
-### Step S78 (remove-legacy, machine edits)
+### Step S86 (remove-legacy, machine edits)
 
 remove the legacy handles, their roots and the values threaded into them.
 
@@ -2012,7 +2180,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S79 (rename, machine edits)
+### Step S87 (rename, machine edits)
 
 rename each sibling to its legacy name: jsNew → js.
 
@@ -2022,7 +2190,7 @@ rename each sibling to its legacy name: jsNew → js.
 Handles: js (migrate/scenarios/scenarios.go:44:12).
 
 
-### Step S80 (add-handle, machine edits)
+### Step S88 (add-handle, machine edits)
 
 create the jetstream siblings jsNew next to the legacy handles.
 
@@ -2044,7 +2212,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S81 (site)
+### Step S89 (site)
 
 JetStreamManager.DeleteStream becomes JetStream.DeleteStream.
 
@@ -2067,7 +2235,7 @@ return jsNew.DeleteStream(context.Background(), "S")
 
 - Fact: a per-call nats.MaxWait becomes a context with that timeout: ctx, cancel := context.WithTimeout(ctx, d); defer cancel()
 
-### Step S82 (remove-legacy)
+### Step S90 (remove-legacy)
 
 remove the legacy handles, their roots and the values threaded into them. Waits on: migrate/scenarios/scenarios.go:45:9.
 
@@ -2089,7 +2257,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S83 (rename)
+### Step S91 (rename)
 
 rename each sibling to its legacy name: jsNew → js. Waits on: migrate/scenarios/scenarios.go:45:9.
 
@@ -2099,7 +2267,7 @@ rename each sibling to its legacy name: jsNew → js. Waits on: migrate/scenario
 Handles: js (migrate/scenarios/scenarios.go:50:36). Safe to apply in one commit.
 
 
-### Step S84 (add-handle, machine edits)
+### Step S92 (add-handle, machine edits)
 
 create the jetstream siblings jsNew next to the legacy handles.
 
@@ -2121,7 +2289,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S85 (site, machine edits)
+### Step S93 (site, machine edits)
 
 JetStreamManager.AddConsumer becomes JetStream.CreatePushConsumer.
 
@@ -2144,7 +2312,7 @@ _, err := jsNew.CreatePushConsumer(ctx, "ORDERS", jetstream.ConsumerConfig{Durab
 
 - Note: legacy AddConsumer is create-only: it returns an identical existing consumer and fails with ErrConsumerNameAlreadyInUse otherwise
 
-### Step S86 (remove-legacy, machine edits)
+### Step S94 (remove-legacy, machine edits)
 
 remove the legacy handles, their roots and the values threaded into them.
 
@@ -2166,7 +2334,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S87 (rename, machine edits)
+### Step S95 (rename, machine edits)
 
 rename each sibling to its legacy name: jsNew → js.
 
@@ -2176,7 +2344,7 @@ rename each sibling to its legacy name: jsNew → js.
 Handles: js (migrate/scenarios/scenarios.go:56:11). Safe to apply in one commit.
 
 
-### Step S88 (add-handle, machine edits)
+### Step S96 (add-handle, machine edits)
 
 create the jetstream siblings jsNew next to the legacy handles.
 
@@ -2198,7 +2366,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S89 (site, machine edits)
+### Step S97 (site, machine edits)
 
 JetStreamManager.StreamNameBySubject becomes JetStream.StreamNameBySubject.
 
@@ -2220,7 +2388,7 @@ return jsNew.StreamNameBySubject(context.Background(), "orders.new")
 ```
 
 
-### Step S90 (remove-legacy, machine edits)
+### Step S98 (remove-legacy, machine edits)
 
 remove the legacy handles, their roots and the values threaded into them.
 
@@ -2242,7 +2410,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S91 (rename, machine edits)
+### Step S99 (rename, machine edits)
 
 rename each sibling to its legacy name: jsNew → js.
 
@@ -2252,7 +2420,7 @@ rename each sibling to its legacy name: jsNew → js.
 Handles: js (migrate/scenarios/scenarios.go:61:12). Safe to apply in one commit.
 
 
-### Step S92 (add-handle, machine edits)
+### Step S100 (add-handle, machine edits)
 
 create the jetstream siblings jsNew next to the legacy handles.
 
@@ -2274,7 +2442,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S93 (site, machine edits)
+### Step S101 (site, machine edits)
 
 PullSubscribe becomes a jetstream.Consumer.
 
@@ -2303,7 +2471,7 @@ _, err := jsNew.CreateOrUpdateConsumer(context.Background(), "ORDERS", jetstream
 - Note: the consumer is created with CreateOrUpdateConsumer, as MIGRATION.md does: legacy used an existing durable as it was when the options it set were compatible, CreateOrUpdateConsumer applies the code's full configuration
 - Note: legacy Unsubscribe and Drain deleted a durable consumer the library had created; the jetstream package keeps it
 
-### Step S94 (remove-legacy, machine edits)
+### Step S102 (remove-legacy, machine edits)
 
 remove the legacy handles, their roots and the values threaded into them.
 
@@ -2325,7 +2493,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S95 (rename, machine edits)
+### Step S103 (rename, machine edits)
 
 rename each sibling to its legacy name: jsNew → js.
 
@@ -2335,7 +2503,7 @@ rename each sibling to its legacy name: jsNew → js.
 Handles: js (migrate/scenarios/scenarios.go:71:11). Safe to apply in one commit.
 
 
-### Step S96 (add-handle, machine edits)
+### Step S104 (add-handle, machine edits)
 
 create the jetstream siblings jsNew next to the legacy handles.
 
@@ -2357,7 +2525,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S97 (site, machine edits)
+### Step S105 (site, machine edits)
 
 PullSubscribe becomes a jetstream.Consumer.
 
@@ -2390,7 +2558,7 @@ _, err := func() (jetstream.Consumer, error) {
 - Note: the consumer is created with CreateOrUpdateConsumer, as MIGRATION.md does: legacy used an existing durable as it was when the options it set were compatible, CreateOrUpdateConsumer applies the code's full configuration
 - Note: legacy Unsubscribe and Drain deleted a durable consumer the library had created; the jetstream package keeps it
 
-### Step S98 (remove-legacy, machine edits)
+### Step S106 (remove-legacy, machine edits)
 
 remove the legacy handles, their roots and the values threaded into them.
 
@@ -2412,7 +2580,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S99 (rename, machine edits)
+### Step S107 (rename, machine edits)
 
 rename each sibling to its legacy name: jsNew → js.
 
@@ -2422,7 +2590,7 @@ rename each sibling to its legacy name: jsNew → js.
 Handles: js (migrate/scenarios/scenarios.go:81:35).
 
 
-### Step S100 (add-handle, machine edits)
+### Step S108 (add-handle, machine edits)
 
 create the jetstream siblings jsNew next to the legacy handles.
 
@@ -2444,7 +2612,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S101 (site)
+### Step S109 (site)
 
 Subscribe becomes a pull consumer's Consume.
 
@@ -2470,7 +2638,7 @@ _, err := js.Subscribe("billing.new", func(m *nats.Msg) {}, nats.Durable("billin
   - explicit: ack explicitly on each handler path
   - none: AckNonePolicy: no acks at all
 
-### Step S102 (remove-legacy)
+### Step S110 (remove-legacy)
 
 remove the legacy handles, their roots and the values threaded into them. Waits on: migrate/scenarios/scenarios.go:82:12.
 
@@ -2492,7 +2660,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S103 (rename)
+### Step S111 (rename)
 
 rename each sibling to its legacy name: jsNew → js. Waits on: migrate/scenarios/scenarios.go:82:12.
 
@@ -2502,7 +2670,7 @@ rename each sibling to its legacy name: jsNew → js. Waits on: migrate/scenario
 Handles: js (migrate/scenarios/scenarios.go:88:2), kv (migrate/scenarios/scenarios.go:92:2). Safe to apply in one commit.
 
 
-### Step S104 (add-handle, machine edits)
+### Step S112 (add-handle, machine edits)
 
 create the jetstream siblings jsNew, kvNew next to the legacy handles.
 
@@ -2549,7 +2717,7 @@ if err != nil {
 ```
 
 
-### Step S105 (site, machine edits)
+### Step S113 (site, machine edits)
 
 KeyValue.Get becomes KeyValue.Get.
 
@@ -2571,7 +2739,7 @@ e, err := kvNew.Get(context.Background(), "a")
 ```
 
 
-### Step S106 (remove-legacy, machine edits)
+### Step S114 (remove-legacy, machine edits)
 
 remove the legacy handles, their roots and the values threaded into them.
 
@@ -2618,7 +2786,7 @@ if err != nil {
 ```
 
 
-### Step S107 (rename, machine edits)
+### Step S115 (rename, machine edits)
 
 rename each sibling to its legacy name: jsNew → js, kvNew → kv.
 
@@ -2628,7 +2796,7 @@ rename each sibling to its legacy name: jsNew → js, kvNew → kv.
 Handles: js (migrate/scenarios/scenarios.go:104:34). Safe to apply in one commit.
 
 
-### Step S108 (add-handle, machine edits)
+### Step S116 (add-handle, machine edits)
 
 create the jetstream siblings jsNew next to the legacy handles.
 
@@ -2650,7 +2818,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S109 (site, machine edits)
+### Step S117 (site, machine edits)
 
 nats.ConsumerConfig literal becomes jetstream.ConsumerConfig; nats.AckExplicitPolicy becomes jetstream.AckExplicitPolicy; JetStreamManager.AddConsumer becomes JetStream.CreateConsumer.
 
@@ -2707,7 +2875,7 @@ _, err := jsNew.CreateConsumer(ctx, "ORDERS", cfg)
 
 - Note: legacy AddConsumer is create-only: it returns an identical existing consumer and fails with ErrConsumerNameAlreadyInUse otherwise
 
-### Step S110 (remove-legacy, machine edits)
+### Step S118 (remove-legacy, machine edits)
 
 remove the legacy handles, their roots and the values threaded into them.
 
@@ -2729,7 +2897,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S111 (rename, machine edits)
+### Step S119 (rename, machine edits)
 
 rename each sibling to its legacy name: jsNew → js.
 
@@ -2739,7 +2907,7 @@ rename each sibling to its legacy name: jsNew → js.
 Handles: js (migrate/scenarios/scenarios.go:112:34). Safe to apply in one commit.
 
 
-### Step S112 (add-handle, machine edits)
+### Step S120 (add-handle, machine edits)
 
 create the jetstream siblings jsNew next to the legacy handles.
 
@@ -2761,7 +2929,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S113 (site, machine edits)
+### Step S121 (site, machine edits)
 
 nats.AckNonePolicy becomes jetstream.AckNonePolicy; nats.AckExplicitPolicy becomes jetstream.AckExplicitPolicy; JetStreamManager.AddConsumer becomes JetStream.CreateConsumer.
 
@@ -2818,7 +2986,7 @@ _, err := jsNew.CreateConsumer(ctx, "ORDERS", jetstream.ConsumerConfig{Durable: 
 
 - Note: legacy AddConsumer is create-only: it returns an identical existing consumer and fails with ErrConsumerNameAlreadyInUse otherwise
 
-### Step S114 (remove-legacy, machine edits)
+### Step S122 (remove-legacy, machine edits)
 
 remove the legacy handles, their roots and the values threaded into them.
 
@@ -2840,7 +3008,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S115 (rename, machine edits)
+### Step S123 (rename, machine edits)
 
 rename each sibling to its legacy name: jsNew → js.
 
@@ -2850,7 +3018,7 @@ rename each sibling to its legacy name: jsNew → js.
 Handles: js (migrate/scenarios/scenarios.go:122:31).
 
 
-### Step S116 (add-handle, machine edits)
+### Step S124 (add-handle, machine edits)
 
 create the jetstream siblings jsNew next to the legacy handles.
 
@@ -2872,7 +3040,7 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S117 (site)
+### Step S125 (site)
 
 Subscribe becomes a pull consumer's Consume.
 
@@ -2898,7 +3066,7 @@ _, err := js.Subscribe("orders.all", func(m *nats.Msg) {}, nats.Durable("all"), 
   - explicit: ack explicitly on each handler path
   - none: AckNonePolicy: no acks at all
 
-### Step S118 (remove-legacy)
+### Step S126 (remove-legacy)
 
 remove the legacy handles, their roots and the values threaded into them. Waits on: migrate/scenarios/scenarios.go:123:12.
 
@@ -2920,14 +3088,14 @@ js nats.JetStreamContext, jsNew jetstream.JetStream
 ```
 
 
-### Step S119 (rename)
+### Step S127 (rename)
 
 rename each sibling to its legacy name: jsNew → js. Waits on: migrate/scenarios/scenarios.go:123:12.
 
 
 ## Sites outside components
 
-### Step S120 (site)
+### Step S128 (site)
 
 declare a jetstream.JetStream sibling next to the nats.JetStreamContext handle.
 
@@ -2950,7 +3118,205 @@ nats.JetStreamContext
 
 - Fact: an unnamed JetStreamContext declaration; name it to thread a jetstream.JetStream next to it
 
-### Step S121 (site)
+### Step S129 (site)
+
+retype nats.StreamConfig as jetstream.StreamConfig; nats.StreamConfig literal becomes jetstream.StreamConfig; retype nats.RetentionPolicy as jetstream.RetentionPolicy; retype nats.StorageType as jetstream.StorageType; retype nats.DiscardPolicy as jetstream.DiscardPolicy; nats.LimitsPolicy becomes jetstream.LimitsPolicy; nats.FileStorage becomes jetstream.FileStorage; nats.DiscardOld becomes jetstream.DiscardOld.
+
+- retention changes type from nats.RetentionPolicy to jetstream.RetentionPolicy; review its use in tests := []struct {
+		retention nats.RetentionPolicy
+		storage   nats.StorageType
+		discard   nats.DiscardPolicy
+	}{
+		{retention: nats.LimitsPolicy, storage: nats.FileStorage, discard: nats.DiscardOld},
+	}
+- storage changes type from nats.StorageType to jetstream.StorageType; review its use in tests := []struct {
+		retention nats.RetentionPolicy
+		storage   nats.StorageType
+		discard   nats.DiscardPolicy
+	}{
+		{retention: nats.LimitsPolicy, storage: nats.FileStorage, discard: nats.DiscardOld},
+	}
+- discard changes type from nats.DiscardPolicy to jetstream.DiscardPolicy; review its use in tests := []struct {
+		retention nats.RetentionPolicy
+		storage   nats.StorageType
+		discard   nats.DiscardPolicy
+	}{
+		{retention: nats.LimitsPolicy, storage: nats.FileStorage, discard: nats.DiscardOld},
+	}
+
+#### Site migrate/order/order.go:37:15: mechanical
+
+retype nats.StreamConfig as jetstream.StreamConfig. See jetstream/MIGRATION.md#stream-management.
+
+Before:
+
+```go
+nats.StreamConfig
+```
+
+After:
+
+```go
+jetstream.StreamConfig
+```
+
+
+#### Site migrate/order/order.go:37:42: mechanical
+
+nats.StreamConfig literal becomes jetstream.StreamConfig. See jetstream/MIGRATION.md#stream-management.
+
+Before:
+
+```go
+return nats.StreamConfig{}
+```
+
+After:
+
+```go
+return jetstream.StreamConfig{}
+```
+
+
+#### Site migrate/order/order.go:41:3: mechanical
+
+retype nats.RetentionPolicy as jetstream.RetentionPolicy.
+
+Before:
+
+```go
+retention nats.RetentionPolicy
+```
+
+After:
+
+```go
+retention jetstream.RetentionPolicy
+```
+
+
+#### Site migrate/order/order.go:42:3: mechanical
+
+retype nats.StorageType as jetstream.StorageType.
+
+Before:
+
+```go
+storage   nats.StorageType
+```
+
+After:
+
+```go
+storage   jetstream.StorageType
+```
+
+
+#### Site migrate/order/order.go:43:3: mechanical
+
+retype nats.DiscardPolicy as jetstream.DiscardPolicy.
+
+Before:
+
+```go
+discard   nats.DiscardPolicy
+```
+
+After:
+
+```go
+discard   jetstream.DiscardPolicy
+```
+
+
+#### Site migrate/order/order.go:45:15: mechanical
+
+nats.LimitsPolicy becomes jetstream.LimitsPolicy.
+
+Before:
+
+```go
+tests := []struct {
+		retention nats.RetentionPolicy
+		storage   nats.StorageType
+		discard   nats.DiscardPolicy
+	}{
+		{retention: nats.LimitsPolicy, storage: nats.FileStorage, discard: nats.DiscardOld},
+	}
+```
+
+After:
+
+```go
+tests := []struct {
+		retention nats.RetentionPolicy
+		storage   nats.StorageType
+		discard   nats.DiscardPolicy
+	}{
+		{retention: jetstream.LimitsPolicy, storage: nats.FileStorage, discard: nats.DiscardOld},
+	}
+```
+
+
+#### Site migrate/order/order.go:45:43: mechanical
+
+nats.FileStorage becomes jetstream.FileStorage.
+
+Before:
+
+```go
+tests := []struct {
+		retention nats.RetentionPolicy
+		storage   nats.StorageType
+		discard   nats.DiscardPolicy
+	}{
+		{retention: nats.LimitsPolicy, storage: nats.FileStorage, discard: nats.DiscardOld},
+	}
+```
+
+After:
+
+```go
+tests := []struct {
+		retention nats.RetentionPolicy
+		storage   nats.StorageType
+		discard   nats.DiscardPolicy
+	}{
+		{retention: nats.LimitsPolicy, storage: jetstream.FileStorage, discard: nats.DiscardOld},
+	}
+```
+
+
+#### Site migrate/order/order.go:45:70: mechanical
+
+nats.DiscardOld becomes jetstream.DiscardOld.
+
+Before:
+
+```go
+tests := []struct {
+		retention nats.RetentionPolicy
+		storage   nats.StorageType
+		discard   nats.DiscardPolicy
+	}{
+		{retention: nats.LimitsPolicy, storage: nats.FileStorage, discard: nats.DiscardOld},
+	}
+```
+
+After:
+
+```go
+tests := []struct {
+		retention nats.RetentionPolicy
+		storage   nats.StorageType
+		discard   nats.DiscardPolicy
+	}{
+		{retention: nats.LimitsPolicy, storage: nats.FileStorage, discard: jetstream.DiscardOld},
+	}
+```
+
+
+### Step S130 (site)
 
 retype nats.KeyValueEntry as jetstream.KeyValueEntry.
 
@@ -2973,7 +3339,7 @@ Template:
 
 - Fact: the method belongs to an implementation of nats.KeyWatcher, whose signature would no longer match; migrate the implementation with the interface (regenerate a mock from jetstream.KeyWatcher)
 
-### Step S122 (site)
+### Step S131 (site)
 
 retype nats.KeyWatcher as jetstream.KeyWatcher.
 
@@ -2996,7 +3362,7 @@ jetstream.KeyWatcher
 
 - Fact: the method belongs to an implementation of nats.KeyWatcher, whose signature would no longer match; migrate the implementation with the interface (regenerate a mock from jetstream.KeyWatcher)
 
-### Step S123 (site)
+### Step S132 (site)
 
 nats.JetStreamContext becomes jetstream.JetStream.
 
@@ -3019,7 +3385,7 @@ js, _ := v.(jetstream.JetStream)
 
 - Fact: nats.JetStreamContext handles migrate through their declarations and roots; this expression makes one the planner does not thread
 
-### Step S124 (site)
+### Step S133 (site)
 
 declare a jetstream.JetStream sibling next to the nats.JetStreamContext handle.
 
@@ -3042,7 +3408,7 @@ nats.JetStreamContext
 
 - Fact: an unnamed JetStreamContext declaration; name it to thread a jetstream.JetStream next to it
 
-### Step S125 (site)
+### Step S134 (site)
 
 declare a jetstream.KeyValue sibling next to the nats.KeyValue handle.
 
@@ -3065,7 +3431,7 @@ nats.KeyValue
 
 - Fact: an unnamed KeyValue declaration; name it to thread a jetstream.KeyValue next to it
 
-### Step S126 (site)
+### Step S135 (site)
 
 Conn.JetStream creates a handle the planner cannot thread.
 
@@ -3095,6 +3461,7 @@ Not needed to finish the migration:
 - migrate/app/subscribe.go:101:14 (stream-name): the stream is likely "ORDERS", created at migrate/app/app.go:44; name it instead of looking it up
 - migrate/app/subscribe.go:114:12 (stream-name): the stream is likely "ORDERS", created at migrate/app/app.go:44; name it instead of looking it up
 - migrate/app/subscribe.go:127:12 (stream-name): the stream is likely "ORDERS", created at migrate/app/app.go:44; name it instead of looking it up
+- migrate/order/order.go:27:14 (stream-name): replace the runtime StreamNameBySubject lookup with the stream's name
 - migrate/scenarios/scenarios.go:72:14 (stream-name): the stream is likely "ORDERS", created at migrate/app/app.go:44; name it instead of looking it up
 - migrate/scenarios/scenarios.go:82:12 (stream-name): replace the runtime StreamNameBySubject lookup with the stream's name
 - migrate/scenarios/scenarios.go:123:12 (stream-name): the stream is likely "ORDERS", created at migrate/app/app.go:44; name it instead of looking it up

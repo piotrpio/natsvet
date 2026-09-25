@@ -65,6 +65,22 @@ func TestIndependentHandles(t *testing.T) {
 	}
 }
 
+// TestHandleInDeclaringFile checks that a handle records the file that
+// declares it, from that file's syntax tree, when the package has later
+// files and an internal test variant, whose type information covers every
+// file of the package.
+func TestHandleInDeclaringFile(t *testing.T) {
+	g, _ := componentsOf(t, "./migrate/multifile")
+	if len(g.handles) == 0 {
+		t.Fatal("no handles in migrate/multifile")
+	}
+	for _, h := range g.handles {
+		if pos := h.ident.Pos(); pos < h.file.ast.FileStart || pos > h.file.ast.FileEnd {
+			t.Errorf("handle %s at %s is recorded in %s", h.ident.Name, g.prog.fset.Position(pos), h.file.rel)
+		}
+	}
+}
+
 func TestExternalBoundary(t *testing.T) {
 	_, comps := componentsOf(t, "./migrate/boundary")
 	if len(comps) != 1 {

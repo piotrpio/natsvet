@@ -225,6 +225,11 @@ func (g *graph) collectHandles() {
 			if !ok || id.Name == "_" {
 				continue
 			}
+			// Defs covers the whole package variant, other files and, in
+			// a test variant, their own parse too.
+			if id.Pos() < f.ast.FileStart || id.Pos() > f.ast.FileEnd {
+				continue
+			}
 			nt, ok := siblingType(v.Type())
 			if !ok {
 				continue
