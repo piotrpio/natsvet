@@ -105,3 +105,9 @@ nats-server/server/jetstream_test.go:23688:4: stream config: subject transform s
 nats-server/server/jetstream_test.go:23702:4: stream config: subject transform from "src" to ".invalid": invalid mapping destination: invalid transform  # FP: TestJetStreamStreamCheckSourcesWithExternal: test asserts each invalid source transform is rejected
 nats-server/server/jetstream_test.go:23713:9: stream config: subject transform sources "src" and "src" can not overlap  # FP: TestJetStreamStreamCheckSourcesWithExternal: test asserts each invalid source transform is rejected
 nats-server/server/jetstream_test.go:9807:91: stream config: sourced stream name is invalid  # FP: TestJetStreamSourceBasics: test asserts an empty source name is rejected
+
+# headerkey-near-miss: keys one slip away from a NATS header, checked at every
+# key site including comparisons with the key of a range over a Header. The two
+# lines are the only unknown Nats- literals at a key site in the corpus.
+go-choria/aagent/watchers/gossipwatcher/gossip.go:197:20: header key "Nats-TTLSeconds" is not a header NATS sets or reads; the closest NATS header is "Nats-TTL"  # TP: the gossip watcher's ttl_seconds sets Nats-TTLSeconds; the per-message TTL header is Nats-TTL (which accepts "30s" as written), so a stream capturing the gossip subject never expires these messages
+natscli/cli/stream_command.go:1291:166: header key "Nats-UpTo-Sequnce" is not a header NATS sets or reads; the closest NATS header is "Nats-UpTo-Sequence"  # TP: the skip list misspells Nats-UpTo-Sequence, so that header is printed with the message headers it means to hide
