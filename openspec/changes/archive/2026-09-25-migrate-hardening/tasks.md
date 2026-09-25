@@ -97,4 +97,4 @@
 ## 10. Final checks
 
 - [x] 10.1 Run `make testdata-deps`, `make lint` (gofmt, go vet, staticcheck, misspell, license headers) and `go test ./...`, all clean.
-- [ ] 10.2 At archive, revise the Purpose of `openspec/specs/migration-planner/spec.md` so that `plan` never edits code and `apply` writes one step at a time. Verify: `openspec validate --strict` passes after the archive.
+- [x] 10.2 At archive, revise the Purpose of `openspec/specs/migration-planner/spec.md` so that `plan` never edits code and `apply` writes one step at a time. Verify: `openspec validate --strict` passes after the archive.

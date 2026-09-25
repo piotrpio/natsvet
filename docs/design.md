@@ -918,3 +918,10 @@ corpus-driven corrections live.
     consumer is planned for nats.go; once it ships (and the mapping table is re-verified
     against that release), ordered subscriptions get the `subscribe-target` choice, with
     push as the behavior-preserving default.
+15. Recording and showing decision answers in `natsvet migrate`: agents write
+    `natsvet-migrate.json` by hand, although migrate-plan deferred a `natsvet migrate
+    answer` command that writes it to the apply work, and `migrate-hardening` shipped
+    `apply` without it. Plans also do not list the answers they applied: a `component`
+    answer shows only as its question no longer being pending (noted by the
+    nats-surveyor trial). Decide whether `answer` is worth a command, or whether echoing
+    the applied answers in the plan is enough.
