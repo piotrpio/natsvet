@@ -174,68 +174,151 @@ func importEdits(text []byte, its []intent) ([]intent, error) {
 				break
 			}
 		}
-		var std, other []string
+		var specs []importLine
 		for _, p := range add {
-			if p == "context" {
-				std = append(std, p)
-			} else {
-				other = append(other, p)
-			}
-		}
-		var sb strings.Builder
-		sb.WriteString("import (\n")
-		for _, p := range std {
-			sb.WriteString("\t" + strconv.Quote(p) + "\n")
+			specs = append(specs, importLine{path: p, text: strconv.Quote(p)})
 		}
 		if single != nil {
 			spec := single.Specs[0].(*ast.ImportSpec)
-			if len(std) > 0 {
-				sb.WriteString("\n")
-			}
-			sb.WriteString("\t" + string(text[off(spec.Pos()):off(spec.End())]) + "\n")
-			if len(other) > 0 {
-				sb.WriteString("\n")
-			}
-		} else if len(std) > 0 && len(other) > 0 {
-			sb.WriteString("\n")
+			p, _ := strconv.Unquote(spec.Path.Value)
+			specs = append(specs, importLine{path: p, text: string(text[off(spec.Pos()):off(spec.End())])})
 		}
-		for _, p := range other {
-			sb.WriteString("\t" + strconv.Quote(p) + "\n")
-		}
-		sb.WriteString(")")
+		body := importBlockBody(specs)
 		if single != nil {
-			out = append(out, intent{start: off(single.Pos()), end: off(single.End()), text: sb.String()})
+			out = append(out, intent{start: off(single.Pos()), end: off(single.End()), text: "import (\n" + body + ")"})
 			return out, nil
 		}
 		o := lineEnd(off(bf.Name.End()))
-		out = append(out, intent{start: o, end: o, text: "\n" + sb.String() + "\n"})
+		out = append(out, intent{start: o, end: o, text: "\nimport (\n" + body + ")\n"})
 		return out, nil
 	}
-	first := block.Specs[0].(*ast.ImportSpec)
-	firstPath, _ := strconv.Unquote(first.Path.Value)
-	for _, p := range add {
-		line := "\t" + strconv.Quote(p) + "\n"
-		switch p {
-		case "context":
-			o := lineStart(off(first.Pos()))
-			if strings.Contains(strings.Split(firstPath, "/")[0], ".") {
-				// The block starts with third-party imports: a group of
-				// its own.
-				line += "\n"
-			}
-			out = append(out, intent{start: o, end: o, text: line})
-		default:
-			o := lineStart(off(block.Rparen))
-			for _, s := range block.Specs {
-				sp := s.(*ast.ImportSpec)
-				if v, _ := strconv.Unquote(sp.Path.Value); v == natsModule && p == jsPath {
-					o = lineEnd(off(sp.End()))
-				}
-			}
-			out = append(out, intent{start: o, end: o, text: line})
+	// Insert each import in sorted position within the group of its kind:
+	// the first group of standard-library imports, or the group holding
+	// nats.go, else the last group of other imports. A missing group is
+	// started before the first group or after the last one.
+	var groups [][]*ast.ImportSpec
+	lastLine := 0
+	for _, sp := range block.Specs {
+		spec := sp.(*ast.ImportSpec)
+		if removed(spec) {
+			continue
+		}
+		first := spec.Pos()
+		if spec.Doc != nil {
+			first = spec.Doc.Pos()
+		}
+		if len(groups) == 0 || tf.Line(first) > lastLine+1 {
+			groups = append(groups, nil)
+		}
+		groups[len(groups)-1] = append(groups[len(groups)-1], spec)
+		lastLine = tf.Line(spec.End())
+	}
+	specPath := func(spec *ast.ImportSpec) string {
+		p, _ := strconv.Unquote(spec.Path.Value)
+		return p
+	}
+	specStart := func(spec *ast.ImportSpec) int {
+		if spec.Doc != nil {
+			return lineStart(off(spec.Doc.Pos()))
+		}
+		return lineStart(off(spec.Pos()))
+	}
+	type insertion struct {
+		std, other []string
+		newGroup   bool
+	}
+	at := make(map[int]*insertion)
+	var offsets []int
+	insert := func(o int, p string, newGroup bool) {
+		ins := at[o]
+		if ins == nil {
+			ins = &insertion{newGroup: newGroup}
+			at[o] = ins
+			offsets = append(offsets, o)
+		}
+		if stdImport(p) {
+			ins.std = append(ins.std, p)
+		} else {
+			ins.other = append(ins.other, p)
 		}
 	}
+	for _, p := range add {
+		target := -1
+		for gi, g := range groups {
+			if stdImport(p) && stdImport(specPath(g[0])) {
+				target = gi
+				break
+			}
+			if !stdImport(p) && !stdImport(specPath(g[0])) {
+				target = gi
+				if slices.ContainsFunc(g, func(s *ast.ImportSpec) bool { return specPath(s) == natsModule }) {
+					break
+				}
+			}
+		}
+		switch {
+		case target >= 0:
+			g := groups[target]
+			o := lineEnd(off(g[len(g)-1].End()))
+			for _, spec := range g {
+				if specPath(spec) > p {
+					o = specStart(spec)
+					break
+				}
+			}
+			insert(o, p, false)
+		case len(groups) == 0:
+			insert(lineStart(off(block.Rparen)), p, false)
+		case stdImport(p):
+			insert(specStart(groups[0][0]), p, true)
+		default:
+			last := groups[len(groups)-1]
+			insert(lineEnd(off(last[len(last)-1].End())), p, true)
+		}
+	}
+	for _, o := range offsets {
+		ins := at[o]
+		var specs []importLine
+		for _, p := range append(ins.std, ins.other...) {
+			specs = append(specs, importLine{path: p, text: strconv.Quote(p)})
+		}
+		body := importBlockBody(specs)
+		switch {
+		case ins.newGroup && len(ins.std) > 0:
+			body += "\n"
+		case ins.newGroup:
+			body = "\n" + body
+		}
+		out = append(out, intent{start: o, end: o, text: body})
+	}
 	return out, nil
+}
+
+// importLine is one import spec to write, with its path for sorting.
+type importLine struct{ path, text string }
+
+// importBlockBody returns the lines of an import block holding specs: the
+// standard-library imports sorted, a blank line, then the others sorted.
+func importBlockBody(specs []importLine) string {
+	slices.SortFunc(specs, func(a, b importLine) int { return strings.Compare(a.path, b.path) })
+	var std, other strings.Builder
+	for _, s := range specs {
+		b := &other
+		if stdImport(s.path) {
+			b = &std
+		}
+		b.WriteString("\t" + s.text + "\n")
+	}
+	if std.Len() > 0 && other.Len() > 0 {
+		return std.String() + "\n" + other.String()
+	}
+	return std.String() + other.String()
+}
+
+// stdImport reports whether an import path is in the standard library:
+// its first element has no dot.
+func stdImport(p string) bool {
+	return !strings.Contains(strings.Split(p, "/")[0], ".")
 }
 
 // usedNames returns the identifiers used as package qualifiers in f.

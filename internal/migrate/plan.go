@@ -14,7 +14,7 @@
 package migrate
 
 // schemaVersion is the version of the plan format; SKILL.md names it.
-const schemaVersion = 1
+const schemaVersion = 2
 
 // Site classes.
 const (
@@ -60,14 +60,17 @@ type Counts struct {
 	Skipped    int `json:"skipped"`
 }
 
-// Pending is a decision pattern still to be answered at one scope.
+// Pending is a decision pattern still to be answered at one scope. A site
+// pattern counts the sites it covers; the component pattern names the
+// components.
 type Pending struct {
-	Pattern string   `json:"pattern"`
-	Scope   string   `json:"scope"`
-	Sites   int      `json:"sites"`
-	Options []string `json:"options"`
-	Default string   `json:"default"`
-	Reason  string   `json:"reason"`
+	Pattern    string   `json:"pattern"`
+	Scope      string   `json:"scope"`
+	Sites      int      `json:"sites,omitempty"`
+	Components []string `json:"components,omitempty"`
+	Options    []string `json:"options"`
+	Default    string   `json:"default"`
+	Reason     string   `json:"reason"`
 }
 
 // Position is a place in a module file.
@@ -79,9 +82,12 @@ type Position struct {
 
 // Site is one unit of the migration.
 type Site struct {
-	ID        string         `json:"id"`
-	Component string         `json:"component,omitempty"`
-	Position  Position       `json:"position"`
+	ID        string   `json:"id"`
+	Component string   `json:"component,omitempty"`
+	Position  Position `json:"position"`
+	// Function is the function or method enclosing the site, as
+	// <pkg>.<Func> or <pkg>.<Type>.<Method>; empty at package level.
+	Function  string         `json:"function,omitempty"`
 	Symbols   []string       `json:"symbols"`
 	Class     string         `json:"class"`
 	Summary   string         `json:"summary"`
@@ -118,17 +124,21 @@ type Alternative struct {
 // carries edits; any other step is done by hand (guided sites, a
 // command) or waits on the sites in WaitsOn.
 type Step struct {
-	ID        string     `json:"id"`
-	Component string     `json:"component,omitempty"`
-	Kind      string     `json:"kind"`
-	Summary   string     `json:"summary"`
-	Machine   bool       `json:"machine"`
-	Sites     []string   `json:"sites,omitempty"`
-	Facts     []string   `json:"facts,omitempty"`
-	Expect    []FileHash `json:"expect,omitempty"`
-	Edits     []Edit     `json:"edits,omitempty"`
-	WaitsOn   []string   `json:"waits_on,omitempty"`
-	Command   string     `json:"command,omitempty"`
+	ID        string   `json:"id"`
+	Component string   `json:"component,omitempty"`
+	Kind      string   `json:"kind"`
+	Summary   string   `json:"summary"`
+	Machine   bool     `json:"machine"`
+	Sites     []string `json:"sites,omitempty"`
+	Facts     []string `json:"facts,omitempty"`
+	// Before and After preview an add-handle, finish or component step:
+	// the full lines its edits touch, per file.
+	Before  string     `json:"before,omitempty"`
+	After   string     `json:"after,omitempty"`
+	Expect  []FileHash `json:"expect,omitempty"`
+	Edits   []Edit     `json:"edits,omitempty"`
+	WaitsOn []string   `json:"waits_on,omitempty"`
+	Command string     `json:"command,omitempty"`
 }
 
 // Edit replaces bytes [Start, End) of File with New, in the coordinates
@@ -147,8 +157,12 @@ type Component struct {
 	Blocked   []Block  `json:"blocked,omitempty"`
 	Skipped   bool     `json:"skipped,omitempty"`
 	OneCommit bool     `json:"one_commit,omitempty"`
-	Steps     []string `json:"steps"`
-	Sites     []string `json:"sites"`
+	// Functions are the functions of the component's sites.
+	Functions []string `json:"functions,omitempty"`
+	// TestOnly: every site of the component is in a _test.go file.
+	TestOnly bool     `json:"test_only,omitempty"`
+	Steps    []string `json:"steps"`
+	Sites    []string `json:"sites"`
 }
 
 // Block is a reason a component keeps its legacy handle.

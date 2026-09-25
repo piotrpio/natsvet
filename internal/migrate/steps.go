@@ -14,21 +14,25 @@
 package migrate
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"go/ast"
+	"go/format"
 	"slices"
 	"strings"
+
+	"golang.org/x/tools/go/ast/astutil"
 )
 
 // Step kinds.
 const (
-	stepGoGet  = "go-get"
-	stepAdd    = "add-handle"
-	stepSite   = "site"
-	stepRemove = "remove-legacy"
-	stepRename = "rename"
+	stepGoGet     = "go-get"
+	stepAdd       = "add-handle"
+	stepSite      = "site"
+	stepFinish    = "finish"
+	stepComponent = "component"
 )
 
 // stepPlan is a step before simulation.
@@ -47,7 +51,9 @@ type stepPlan struct {
 	waitsOn []string
 	facts   []string
 	command string
-	out     *Step
+	// parts are the steps a component step runs as one.
+	parts []*stepPlan
+	out   *Step
 }
 
 // compPlan is the steps of one component.
@@ -55,8 +61,7 @@ type compPlan struct {
 	comp      *component
 	add       *stepPlan
 	units     []*stepPlan
-	remove    *stepPlan
-	rename    *stepPlan
+	finish    *stepPlan
 	blocked   []boundary
 	skipped   bool
 	roots     []*classified
@@ -69,9 +74,8 @@ type compPlan struct {
 // components.
 func (p *planner) assemble(comps []*component, units []*unit) []*stepPlan {
 	var steps []*stepPlan
-	if older(p.prog.natsVersion, tableVersion) {
-		steps = append(steps, &stepPlan{kind: stepGoGet, machine: false, command: "go get " + natsModule + "@latest",
-			summary: fmt.Sprintf("raise nats.go from %s: the mapping was verified against %s, and later v1 releases only add API", p.prog.natsVersion, tableVersion)})
+	if st := stepZero(p.prog.natsVersion); st != nil {
+		steps = append(steps, st)
 	}
 	byComp := make(map[*component][]*unit)
 	var loose []*unit
@@ -87,11 +91,14 @@ func (p *planner) assemble(comps []*component, units []*unit) []*stepPlan {
 		if cp.skipped {
 			continue
 		}
-		steps = append(steps, cp.add)
-		steps = append(steps, cp.units...)
-		if cp.remove != nil {
-			steps = append(steps, cp.remove, cp.rename)
+		parts := append([]*stepPlan{cp.add}, cp.units...)
+		parts = append(parts, cp.finish)
+		parts = slices.DeleteFunc(parts, func(st *stepPlan) bool { return st == nil })
+		if cp.oneCommit && !slices.ContainsFunc(parts, func(st *stepPlan) bool { return !st.machine }) {
+			steps = append(steps, p.componentStep(comp, parts))
+			continue
 		}
+		steps = append(steps, parts...)
 	}
 	for _, u := range orderUnits(loose) {
 		steps = append(steps, p.unitStep(nil, u, nil))
@@ -103,6 +110,52 @@ func (p *planner) assemble(comps []*component, units []*unit) []*stepPlan {
 		}
 	}
 	return out
+}
+
+// stepZero raises a module's nats.go to the version the table was verified
+// against, when it requires an older one.
+func stepZero(module string) *stepPlan {
+	if !older(module, tableVersion) {
+		return nil
+	}
+	return &stepPlan{kind: stepGoGet, command: "go get " + natsModule + "@" + tableVersion,
+		summary: fmt.Sprintf("raise nats.go from %s to %s, the version the mapping and its behavior facts were verified against; later v1 releases only add API", module, tableVersion)}
+}
+
+// versionNote tells how the module's nats.go relates to the table's.
+func versionNote(module string) string {
+	switch {
+	case older(module, tableVersion):
+		return fmt.Sprintf("the module requires nats.go %s: apply step S0 and plan again; this plan was classified against the jetstream package of %s", module, module)
+	case older(tableVersion, module):
+		return fmt.Sprintf("the module requires nats.go %s; the behavior facts in this plan were verified against %s", module, tableVersion)
+	}
+	return ""
+}
+
+// componentStep makes the one step of a component safe in one commit: its
+// parts run in order, and the plan shows their combined edits.
+func (p *planner) componentStep(comp *component, parts []*stepPlan) *stepPlan {
+	st := &stepPlan{kind: stepComponent, comp: comp, machine: true, parts: parts}
+	var names, summaries []string
+	for _, h := range comp.handles {
+		names = append(names, h.ident.Name)
+	}
+	for _, part := range parts {
+		for _, c := range part.sites {
+			if !slices.Contains(st.sites, c) {
+				st.sites = append(st.sites, c)
+			}
+		}
+		if part.kind == stepSite && part.summary != "" {
+			summaries = append(summaries, part.summary)
+		}
+	}
+	st.summary = "migrate " + strings.Join(names, ", ") + " to the jetstream package in one step"
+	if len(summaries) > 0 {
+		st.summary += ": " + strings.Join(uniq(summaries), "; ")
+	}
+	return st
 }
 
 // orderUnits puts units whose sites are all mechanical first.
@@ -133,7 +186,12 @@ func orderUnits(us []*unit) []*unit {
 // mechanical, or whose component cannot get its siblings, carries no
 // edits.
 func (p *planner) unitStep(comp *component, u *unit, addBlockers []string) *stepPlan {
-	st := &stepPlan{kind: stepSite, comp: comp, sites: u.sites, machine: true}
+	// Unmapped sites have no step: no step can migrate them.
+	listed := slices.DeleteFunc(slices.Clone(u.sites), func(c *classified) bool { return c.class == classUnmapped })
+	if len(listed) == 0 {
+		return nil
+	}
+	st := &stepPlan{kind: stepSite, comp: comp, sites: listed, machine: true}
 	var parts []string
 	var intents []intent
 	for _, c := range u.sites {
@@ -237,7 +295,29 @@ func (p *planner) planComponent(comp *component, units []*unit) *compPlan {
 		add.machine = false
 		add.facts = append(add.facts, whys...)
 	}
-	if add.machine {
+	// Siblings an earlier add-handle step declared: when every threadable
+	// handle has one, the step is done, and a root that was guided holds
+	// back only the finish step.
+	var present, missing []string
+	for _, h := range comp.handles {
+		switch {
+		case !h.threadable:
+		case h.present != nil:
+			present = append(present, h.sibling)
+		default:
+			missing = append(missing, h.ident.Name)
+		}
+	}
+	resumed := len(present) > 0 && len(missing) == 0
+	if len(present) > 0 && len(missing) > 0 {
+		add.machine = false
+		add.facts = append(add.facts, fmt.Sprintf("the siblings %s are declared but %s have none; declare the missing ones as this step would, or remove the declared ones, and plan again", strings.Join(present, ", "), strings.Join(missing, ", ")))
+	}
+	switch {
+	case resumed:
+		holdBlockers = append(holdBlockers, addBlockers...)
+		addBlockers = nil
+	case add.machine:
 		intents, facts := p.addIntents(comp, cp)
 		if len(facts) > 0 {
 			add.machine = false
@@ -246,7 +326,7 @@ func (p *planner) planComponent(comp *component, units []*unit) *compPlan {
 			add.intents = intents
 		}
 	}
-	if !add.machine && len(addBlockers) == 0 {
+	if !resumed && !add.machine && len(addBlockers) == 0 {
 		addBlockers = append(addBlockers, "add-handle")
 	}
 	var names []string
@@ -256,7 +336,7 @@ func (p *planner) planComponent(comp *component, units []*unit) *compPlan {
 		}
 	}
 	add.summary = "create the jetstream siblings " + strings.Join(names, ", ") + " next to the legacy handles"
-	if len(comp.handles) == 0 {
+	if len(comp.handles) == 0 || resumed {
 		add = nil
 	}
 	cp.add = add
@@ -279,33 +359,34 @@ func (p *planner) planComponent(comp *component, units []*unit) *compPlan {
 	}
 	for _, u := range orderUnits(handleUnits) {
 		st := p.unitStep(comp, u, blocking)
-		cp.units = append(cp.units, st)
-		if !st.machine {
+		if st == nil || !st.machine {
 			for _, c := range u.sites {
 				if c.role == roleSite && c.class != classMechanical {
 					cp.blockers = append(cp.blockers, c.id)
 				}
 			}
-			if len(u.facts) > 0 || len(st.facts) > 0 {
-				cp.blockers = append(cp.blockers, u.sites[0].id)
-			}
+		}
+		if st == nil {
+			continue
+		}
+		cp.units = append(cp.units, st)
+		if !st.machine && (len(u.facts) > 0 || len(st.facts) > 0) {
+			cp.blockers = append(cp.blockers, u.sites[0].id)
 		}
 	}
 	cp.blockers = uniq(append(append(slices.Clone(blocking), holdBlockers...), cp.blockers...))
 	if len(cp.blocked) > 0 {
 		return cp
 	}
-	// Removal and rename.
-	rm := &stepPlan{kind: stepRemove, comp: comp, summary: "remove the legacy handles, their roots and the values threaded into them", sites: append(slices.Clone(cp.roots), cp.decls...)}
-	rn := &stepPlan{kind: stepRename, comp: comp, summary: "rename each sibling to its legacy name: " + renames(comp)}
+	// Removal and rename, in one step.
+	fin := &stepPlan{kind: stepFinish, comp: comp, summary: "remove the legacy handles, their roots and the values threaded into them, and rename each sibling to its legacy name: " + renames(comp), sites: append(slices.Clone(cp.roots), cp.decls...)}
 	if len(cp.blockers) > 0 {
-		rm.waitsOn, rn.waitsOn = cp.blockers, cp.blockers
+		fin.waitsOn = cp.blockers
 	} else {
-		rm.machine, rn.machine = true, true
-		rm.current = func(sm *sim) ([]intent, error) { return p.removeIntents(sm, comp, cp) }
-		rn.current = func(sm *sim) ([]intent, error) { return p.renameIntents(sm, comp) }
+		fin.machine = true
+		fin.current = func(sm *sim) ([]intent, error) { return p.finishIntents(sm, comp, cp) }
 	}
-	cp.remove, cp.rename = rm, rn
+	cp.finish = fin
 	cp.oneCommit = len(cp.blockers) == 0 && p.onePackage(comp, units)
 	comp.oneCommit = cp.oneCommit
 	return cp
@@ -645,7 +726,7 @@ func (p *planner) removeIntents(sm *sim, comp *component, cp *compPlan) ([]inten
 		}
 	}
 	for _, h := range comp.handles {
-		if sp, ok := sm.span(h.file, "placeholder:"+string(h.key)); ok {
+		for _, sp := range sm.spans(h.file, "placeholder:"+string(h.key)) {
 			out = append(out, intent{file: h.file, start: sp[0], end: sp[1]})
 		}
 	}
@@ -676,6 +757,80 @@ func (p *planner) removeIntents(sm *sim, comp *component, cp *compPlan) ([]inten
 		}
 	}
 	return out, nil
+}
+
+// finishIntents removes a component's legacy handles and renames its
+// siblings, leaving out the renames inside removed text.
+func (p *planner) finishIntents(sm *sim, comp *component, cp *compPlan) ([]intent, error) {
+	rm, err := p.removeIntents(sm, comp, cp)
+	if err != nil {
+		return nil, err
+	}
+	rn, err := p.renameIntents(sm, comp)
+	if err != nil {
+		return nil, err
+	}
+	keys := make(map[string]bool)
+	for _, h := range comp.handles {
+		keys[string(h.key)] = true
+	}
+	out := make([]intent, 0, len(rm)+len(rn))
+	for _, it := range rm {
+		out = append(out, renameInText(it, keys))
+	}
+	for _, it := range rn {
+		if !slices.ContainsFunc(rm, func(r intent) bool {
+			return r.file == it.file && r.start < r.end && r.start <= it.start && it.end <= r.end
+		}) {
+			out = append(out, it)
+		}
+	}
+	return out, nil
+}
+
+// renameInText renames the siblings of keys inside the text an intent
+// inserts, and moves the intent's other marks accordingly.
+func renameInText(it intent, keys map[string]bool) intent {
+	type rename struct{ off, n, delta int }
+	var renames []rename
+	var b strings.Builder
+	last := 0
+	marks := slices.Clone(it.marks)
+	slices.SortFunc(marks, func(a, b mark) int { return a.off - b.off })
+	for _, m := range marks {
+		if m.kind != markSibling || !keys[m.key] {
+			continue
+		}
+		b.WriteString(it.text[last:m.off])
+		b.WriteString(m.orig)
+		last = m.off + m.n
+		renames = append(renames, rename{m.off, m.n, len(m.orig) - m.n})
+	}
+	if len(renames) == 0 {
+		return it
+	}
+	b.WriteString(it.text[last:])
+	shift := func(o int) int {
+		d := 0
+		for _, r := range renames {
+			if r.off+r.n <= o {
+				d += r.delta
+			}
+		}
+		return o + d
+	}
+	var kept []mark
+	for _, m := range marks {
+		if m.kind == markSibling && keys[m.key] {
+			continue
+		}
+		end := shift(m.off + m.n)
+		m.off = shift(m.off)
+		m.n = end - m.off
+		kept = append(kept, m)
+	}
+	it.text, it.marks = b.String(), kept
+	return it
 }
 
 // renameIntents renames every sibling of a component to its legacy name.
@@ -743,6 +898,77 @@ func (sm *sim) cur(f *srcFile, o int, after bool) (int, error) {
 	return o, nil
 }
 
+// seed loads the siblings, placeholders and sibling roots an earlier
+// add-handle step left in the loaded code into the marks, as that step
+// leaves them in the simulation, so that the finish step finds them.
+func (sm *sim) seed() {
+	p := sm.p
+	for _, h := range p.g.handles {
+		if h.present == nil {
+			continue
+		}
+		sk := p.prog.key(h.file.info().Defs[h.present])
+		legacy := p.prog.key(h.file.info().Defs[h.ident])
+		for _, f := range sm.order {
+			info, sf := f.info(), sm.files[f]
+			ast.Inspect(f.ast, func(n ast.Node) bool {
+				if id, ok := n.(*ast.Ident); ok && p.prog.key(info.ObjectOf(id)) == sk {
+					sf.marks = append(sf.marks, mark{off: p.prog.offset(id.Pos()), n: len(id.Name), kind: markSibling, name: h.sibling, orig: h.ident.Name, key: string(h.key)})
+				}
+				return true
+			})
+		}
+		info, sf := h.file.info(), sm.files[h.file]
+		ast.Inspect(h.file.ast, func(n ast.Node) bool {
+			if x, ok := isPlaceholder(n); ok {
+				if k := p.prog.key(info.ObjectOf(ast.Unparen(x).(*ast.Ident))); k == legacy || k == sk {
+					s, e := p.prog.lineSpan(n.Pos(), n.End())
+					sf.marks = append(sf.marks, mark{off: s, n: e - s, kind: markSpan, key: "placeholder:" + string(h.key)})
+				}
+			}
+			return true
+		})
+	}
+	for _, c := range p.cls {
+		if c.role != roleRoot || c.root == nil || c.root.create == "" {
+			continue
+		}
+		h := p.g.handles[c.root.r.to]
+		if h == nil || h.present == nil {
+			continue
+		}
+		path, _ := astutil.PathEnclosingInterval(h.file.ast, h.present.Pos(), h.present.End())
+		for i, n := range path {
+			as, ok := n.(*ast.AssignStmt)
+			if !ok || i+1 >= len(path) {
+				continue
+			}
+			end := as.End()
+			if ec := followingErrCheck([]ast.Node{path[i+1], as}, as); ec != nil {
+				end = ec.End()
+			}
+			s, e := p.prog.lineSpan(as.Pos(), end)
+			sf := sm.files[h.file]
+			sf.marks = append(sf.marks, mark{off: s, n: e - s, kind: markSpan, key: "root:" + c.id})
+			break
+		}
+	}
+	for _, sf := range sm.files {
+		slices.SortFunc(sf.marks, func(a, b mark) int { return a.off - b.off })
+	}
+}
+
+// spans returns the current ranges of the span marks with key.
+func (sm *sim) spans(f *srcFile, key string) [][2]int {
+	var out [][2]int
+	for _, m := range sm.files[f].marks {
+		if m.kind == markSpan && m.key == key {
+			out = append(out, [2]int{m.off, m.off + m.n})
+		}
+	}
+	return out
+}
+
 // span returns the current range of a span mark.
 func (sm *sim) span(f *srcFile, key string) ([2]int, bool) {
 	for _, m := range sm.files[f].marks {
@@ -751,6 +977,197 @@ func (sm *sim) span(f *srcFile, key string) ([2]int, bool) {
 		}
 	}
 	return [2]int{}, false
+}
+
+// simState is a file's place in the simulation: its log length and text.
+type simState struct {
+	n    int
+	text []byte
+}
+
+// state records every file's place, to compose the batches logged after
+// it.
+func (sm *sim) state() map[*srcFile]simState {
+	out := make(map[*srcFile]simState, len(sm.files))
+	for f, sf := range sm.files {
+		out[f] = simState{n: len(sf.log), text: sf.text}
+	}
+	return out
+}
+
+// snapshot copies the simulated files, to restore them when a component
+// step fails.
+func (sm *sim) snapshot() map[*srcFile]simFile {
+	out := make(map[*srcFile]simFile, len(sm.files))
+	for f, sf := range sm.files {
+		out[f] = *sf
+	}
+	return out
+}
+
+func (sm *sim) restore(snap map[*srcFile]simFile) {
+	for f, sf := range snap {
+		*sm.files[f] = sf
+	}
+}
+
+// applyComponent runs the parts of a component step and fills in its
+// edits, composed per file from every batch the parts logged, and the
+// final text of its sites.
+func (sm *sim) applyComponent(st *stepPlan) error {
+	p := sm.p
+	start := sm.state()
+	type window struct {
+		f    *srcFile
+		a, b int
+	}
+	windows := make(map[*classified]window)
+	for _, c := range st.sites {
+		n := p.span(c)
+		a, err := sm.cur(c.s.file, p.prog.offset(n.Pos()), false)
+		if err != nil {
+			continue
+		}
+		b, err := sm.cur(c.s.file, p.prog.offset(n.End()), true)
+		if err != nil {
+			continue
+		}
+		windows[c] = window{c.s.file, a, b}
+	}
+	for _, part := range st.parts {
+		part.out = &Step{}
+		if err := sm.apply(part); err != nil {
+			return err
+		}
+	}
+	composed := make(map[*srcFile][]intent)
+	for _, f := range sm.order {
+		sf, s := sm.files[f], start[f]
+		if len(sf.log) == s.n {
+			continue
+		}
+		its, err := composeBatches(s.text, sf.text, sf.log[s.n:])
+		if err != nil {
+			return fmt.Errorf("%s: %w", f.rel, err)
+		}
+		if len(its) == 0 {
+			continue
+		}
+		composed[f] = its
+		st.out.Expect = append(st.out.Expect, FileHash{File: f.rel, SHA256: hash(s.text)})
+		for _, it := range its {
+			st.out.Edits = append(st.out.Edits, Edit{File: f.rel, Start: it.start, End: it.end, New: it.text})
+		}
+	}
+	for _, c := range st.sites {
+		if w, ok := windows[c]; ok && c.owner == nil {
+			c.after = finalText(start[w.f].text, composed[w.f], w.a, w.b, p.prog.indentOf(p.span(c).Pos()))
+		}
+	}
+	return nil
+}
+
+// preview fills in the before and after of an add-handle, finish or
+// component step: per file, the full lines its edits touch, merged where
+// they meet.
+func (sm *sim) preview(st *stepPlan, before map[*srcFile]simState) {
+	if st.kind != stepAdd && st.kind != stepFinish && st.kind != stepComponent {
+		return
+	}
+	var b, a strings.Builder
+	for _, fh := range st.out.Expect {
+		var f *srcFile
+		for _, sf := range sm.order {
+			if sf.rel == fh.File {
+				f = sf
+			}
+		}
+		var edits []Edit
+		for _, e := range st.out.Edits {
+			if e.File == fh.File {
+				edits = append(edits, e)
+			}
+		}
+		pb, pa := previewLines(before[f].text, edits)
+		b.WriteString("// " + fh.File + "\n" + pb)
+		a.WriteString("// " + fh.File + "\n" + pa)
+	}
+	st.out.Before = strings.TrimRight(b.String(), "\n")
+	st.out.After = strings.TrimRight(a.String(), "\n")
+}
+
+// previewLines returns the full lines of text that sorted edits touch, and
+// the same lines once the edits apply; separate groups of lines are joined
+// by a "..." line.
+func previewLines(text []byte, edits []Edit) (string, string) {
+	type rng struct{ s, e int }
+	var rs []rng
+	for _, e := range edits {
+		s, en := e.Start, e.End
+		for s > 0 && text[s-1] != '\n' {
+			s--
+		}
+		if en == e.Start || text[en-1] != '\n' {
+			for en < len(text) && text[en] != '\n' {
+				en++
+			}
+			if en < len(text) {
+				en++
+			}
+		}
+		if n := len(rs); n > 0 && s <= rs[n-1].e {
+			rs[n-1].e = max(rs[n-1].e, en)
+			continue
+		}
+		rs = append(rs, rng{s, en})
+	}
+	var b, a strings.Builder
+	for i, r := range rs {
+		if i > 0 {
+			b.WriteString("...\n")
+			a.WriteString("...\n")
+		}
+		b.Write(text[r.s:r.e])
+		last := r.s
+		for _, e := range edits {
+			if e.Start >= r.s && e.End <= r.e {
+				a.Write(text[last:e.Start])
+				a.WriteString(e.New)
+				last = e.End
+			}
+		}
+		a.Write(text[last:r.e])
+	}
+	return b.String(), a.String()
+}
+
+// finalText returns the text of [a, b) of before once edits apply, widened
+// to every edit it reaches, without the indentation of its first line.
+func finalText(before []byte, edits []intent, a, b int, indent string) string {
+	for changed := true; changed; {
+		changed = false
+		for _, it := range edits {
+			if it.start <= b && it.end >= a && (it.start < a || it.end > b) {
+				a, b, changed = min(a, it.start), max(b, it.end), true
+			}
+		}
+	}
+	var sb strings.Builder
+	last := a
+	for _, it := range edits {
+		if it.start >= a && it.end <= b {
+			sb.Write(before[last:it.start])
+			sb.WriteString(it.text)
+			last = it.end
+		}
+	}
+	sb.Write(before[last:b])
+	lines := strings.Split(strings.TrimRight(sb.String(), "\n"), "\n")
+	for i, l := range lines {
+		lines[i] = strings.TrimPrefix(l, indent)
+	}
+	lines[0] = strings.TrimLeft(lines[0], " \t")
+	return strings.Join(lines, "\n")
 }
 
 // resolve turns a step's edits into current coordinates.
@@ -813,12 +1230,28 @@ func (sm *sim) apply(st *stepPlan) error {
 			return fmt.Errorf("%s: import edits overlap code edits", f.rel)
 		}
 		st.out.Expect = append(st.out.Expect, FileHash{File: f.rel, SHA256: hash(sf.text)})
+		pre, clean := sf.text, gofmtClean(sf.text)
+		sf.applyBatch(its)
+		if clean {
+			if fe := formatEdits(sf.text); len(fe) > 0 {
+				sf.applyBatch(fe)
+				its, err = composeBatches(pre, sf.text, sf.log[len(sf.log)-2:])
+				if err != nil {
+					return fmt.Errorf("%s: %w", f.rel, err)
+				}
+			}
+		}
 		for _, it := range its {
 			st.out.Edits = append(st.out.Edits, Edit{File: f.rel, Start: it.start, End: it.end, New: it.text})
 		}
-		sf.applyBatch(its)
 	}
 	return nil
+}
+
+// gofmtClean reports whether src is formatted as gofmt formats it.
+func gofmtClean(src []byte) bool {
+	f, err := format.Source(src)
+	return err == nil && bytes.Equal(f, src)
 }
 
 // applyBatch applies non-overlapping edits sorted by start, and moves the
@@ -828,7 +1261,8 @@ func (sf *simFile) applyBatch(its []intent) {
 	for _, it := range its {
 		batch = append(batch, logEdit{start: it.start, end: it.end, n: len(it.text)})
 	}
-	// Move existing marks; drop those inside replaced text.
+	// Move existing marks. A span survives edits strictly inside it; any
+	// other mark an edit reaches into is gone.
 	var marks []mark
 	for _, m := range sf.marks {
 		delta, gone := 0, false
@@ -843,7 +1277,10 @@ func (sf *simFile) applyBatch(its []intent) {
 				}
 			case e.end <= m.off:
 				delta += e.n - (e.end - e.start)
-			case e.start < m.off+m.n:
+			case e.start >= m.off+m.n:
+			case m.kind == markSpan && m.off <= e.start && e.end <= m.off+m.n && e.end-e.start < m.n:
+				n += e.n - (e.end - e.start)
+			default:
 				gone = true
 			}
 		}

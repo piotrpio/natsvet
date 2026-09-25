@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"go/parser"
 	"go/token"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -43,7 +44,7 @@ func planErr(t *testing.T, answers []Answer, patterns ...string) (*Plan, error) 
 	path := ""
 	if answers != nil {
 		path = filepath.Join(t.TempDir(), decisionsFile)
-		b, _ := json.Marshal(Decisions{Version: 1, Answers: answers})
+		b, _ := json.Marshal(Decisions{Version: decisionsVersion, Answers: answers})
 		if err := os.WriteFile(path, b, 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -102,22 +103,23 @@ func TestMechanicalReplacements(t *testing.T) {
 		note               string
 	}{
 		{"consumer creation", scenarios, `Heartbeat: time.Second`,
-			[]string{`jsNew.CreatePushConsumer(ctx, "ORDERS", jetstream.ConsumerConfig{Durable: "w", DeliverSubject: "w.deliver", IdleHeartbeat: time.Second, AckPolicy: jetstream.AckNonePolicy})`}, "create-only"},
+			[]string{`js.CreatePushConsumer(ctx, "ORDERS", jetstream.ConsumerConfig{Durable: "w", DeliverSubject: "w.deliver", IdleHeartbeat: time.Second, AckPolicy: jetstream.AckNonePolicy})`}, "create-only"},
 		{"purge through a stream handle", appFile, "PurgeStream",
 			[]string{`.Stream(context.Background(), "ORDERS")`, "stream.Purge(context.Background())"}, "STREAM.INFO"},
 		{"options folded into a config", scenarios, "nats.BindStream",
 			[]string{`Durable: "w"`, "DeliverPolicy: jetstream.DeliverNewPolicy", "MaxAckPending: 100", `FilterSubject: "orders.new"`, `CreateOrUpdateConsumer(context.Background(), "ORDERS"`}, ""},
 		{"runtime stream lookup", scenarios, `js.PullSubscribe("orders.new", "w")`,
 			[]string{`StreamNameBySubject(context.Background(), "orders.new")`}, ""},
-		{"plain call", scenarios, "StreamNameBySubject", []string{`jsNew.StreamNameBySubject(context.Background(), "orders.new")`}, ""},
+		{"plain call", scenarios, "StreamNameBySubject", []string{`js.StreamNameBySubject(context.Background(), "orders.new")`}, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s := siteWith(t, plan, tc.file, tc.before)
 			if s.Class != classMechanical {
 				t.Fatalf("class %s (%v), want mechanical", s.Class, s.Facts)
 			}
+			after := strings.Join(strings.Fields(s.After), " ")
 			for _, w := range tc.want {
-				if !strings.Contains(s.After, w) {
+				if !strings.Contains(after, w) {
 					t.Errorf("after %q lacks %q", s.After, w)
 				}
 			}
@@ -278,17 +280,28 @@ func TestDurableNoteAndFollowUps(t *testing.T) {
 	}
 }
 
-func TestComponentSteps(t *testing.T) {
-	plan := planFor(t, nil, "./migrate/...")
-	comp := func(file string) Component {
-		for _, c := range plan.Components {
-			if strings.HasPrefix(c.ID, file+":") {
+// componentIn returns the first component with a site in a file whose
+// path starts with prefix.
+func componentIn(t *testing.T, plan *Plan, prefix string) Component {
+	t.Helper()
+	files := make(map[string]string)
+	for _, s := range plan.Sites {
+		files[s.ID] = s.Position.File
+	}
+	for _, c := range plan.Components {
+		for _, id := range c.Sites {
+			if strings.HasPrefix(files[id], prefix) {
 				return c
 			}
 		}
-		t.Fatalf("no component in %s", file)
-		return Component{}
 	}
+	t.Fatalf("no component in %s", prefix)
+	return Component{}
+}
+
+func TestComponentSteps(t *testing.T) {
+	plan := planFor(t, nil, "./migrate/...")
+	comp := func(file string) Component { return componentIn(t, plan, file) }
 	steps := make(map[string]Step)
 	for _, st := range plan.Steps {
 		steps[st.ID] = st
@@ -303,7 +316,7 @@ func TestComponentSteps(t *testing.T) {
 	fetch := siteWith(t, plan, subFile, `PullSubscribe("orders.new", "batch")`)
 	for _, id := range app.Steps {
 		st := steps[id]
-		if (st.Kind == stepRemove || st.Kind == stepRename) && (st.Machine || !slices.Contains(st.WaitsOn, fetch.ID)) {
+		if st.Kind == stepFinish && (st.Machine || !slices.Contains(st.WaitsOn, fetch.ID)) {
 			t.Errorf("%s step %s: machine %v, waits on %v; want waiting on the Fetch site %s", st.Kind, st.ID, st.Machine, st.WaitsOn, fetch.ID)
 		}
 	}
@@ -312,7 +325,7 @@ func TestComponentSteps(t *testing.T) {
 		t.Error("the component passing its handle outside is not blocked")
 	}
 	for _, id := range b.Steps {
-		if k := steps[id].Kind; k == stepRemove || k == stepRename {
+		if k := steps[id].Kind; k == stepFinish {
 			t.Errorf("blocked component has a %s step", k)
 		}
 	}
@@ -333,11 +346,37 @@ func TestStepZero(t *testing.T) {
 	if err != nil {
 		t.Skipf("the old nats.go is not available: %v", err)
 	}
-	if len(plan.Steps) == 0 || plan.Steps[0].Kind != stepGoGet || plan.Steps[0].Command != "go get github.com/nats-io/nats.go@latest" {
-		t.Errorf("first step %+v, want go get github.com/nats-io/nats.go@latest", plan.Steps[0])
+	if len(plan.Steps) == 0 || plan.Steps[0].Kind != stepGoGet || plan.Steps[0].Command != "go get github.com/nats-io/nats.go@"+tableVersion {
+		t.Errorf("first step %+v, want go get github.com/nats-io/nats.go@%s", plan.Steps[0], tableVersion)
 	}
 	if plan.ModuleNatsVersion != "v1.31.0" {
 		t.Errorf("module nats.go %q, want v1.31.0", plan.ModuleNatsVersion)
+	}
+}
+
+// TestVersionStep checks step 0 and the version note for a module on an
+// older, the same and a newer nats.go than the table's.
+func TestVersionStep(t *testing.T) {
+	for _, tc := range []struct {
+		module, command, note string
+	}{
+		{"v1.31.0", "go get github.com/nats-io/nats.go@" + tableVersion, "apply step S0 and plan again"},
+		{tableVersion, "", ""},
+		{"v1.54.0", "", "the behavior facts in this plan were verified against " + tableVersion},
+	} {
+		t.Run(tc.module, func(t *testing.T) {
+			st := stepZero(tc.module)
+			switch {
+			case tc.command == "" && st != nil:
+				t.Errorf("step 0 %+v, want none", st)
+			case tc.command != "" && (st == nil || st.command != tc.command):
+				t.Errorf("step 0 %+v, want %q", st, tc.command)
+			}
+			note := versionNote(tc.module)
+			if (tc.note == "") != (note == "") || !strings.Contains(note, tc.note) {
+				t.Errorf("note %q, want one containing %q", note, tc.note)
+			}
+		})
 	}
 }
 
@@ -371,12 +410,7 @@ func TestDecisionAnswers(t *testing.T) {
 		}
 	})
 	t.Run("skipped component", func(t *testing.T) {
-		var id string
-		for _, c := range base.Components {
-			if strings.HasPrefix(c.ID, "migrate/legacytests/") {
-				id = c.ID
-			}
-		}
+		id := componentIn(t, base, "migrate/legacytests/").ID
 		plan := planFor(t, []Answer{{Pattern: patComponent, Scope: "component:" + id, Choice: "skip"}}, "./migrate/...")
 		skipped := 0
 		for _, s := range plan.Sites {
@@ -480,13 +514,20 @@ func TestMarkdownMirrorsJSON(t *testing.T) {
 	}
 	text := md.String()
 	for _, s := range plan.Sites {
-		if !strings.Contains(text, "Site "+s.ID+":") {
-			t.Errorf("markdown lacks site %s", s.ID)
+		if n := strings.Count(text, "Site "+s.ID+":"); n != 1 {
+			t.Errorf("markdown shows site %s %d times, want once", s.ID, n)
 		}
 	}
 	for _, st := range plan.Steps {
-		if !strings.Contains(text, "Step "+st.ID+" ") && !strings.Contains(text, "Step "+st.ID+":") {
-			t.Errorf("markdown lacks step %s", st.ID)
+		if n := strings.Count(text, "Step "+st.ID+" ") + strings.Count(text, "Step "+st.ID+":"); n != 1 {
+			t.Errorf("markdown shows step %s %d times, want once", st.ID, n)
+		}
+	}
+	for _, p := range plan.Pending {
+		for _, id := range p.Components {
+			if !strings.Contains(text, "  - "+id+": ") {
+				t.Errorf("the component question does not list %s", id)
+			}
 		}
 	}
 	for _, p := range plan.Pending {
@@ -551,7 +592,7 @@ func TestHelperHandle(t *testing.T) {
 		t.Fatalf("Get on a helper's handle: class %s facts %v, want guided because the handle cannot be threaded", get.Class, get.Facts)
 	}
 	for _, st := range plan.Steps {
-		if st.Component == get.Component && (st.Kind == stepRemove || st.Kind == stepRename) && (st.Machine || !slices.Contains(st.WaitsOn, get.ID)) {
+		if st.Component == get.Component && st.Kind == stepFinish && (st.Machine || !slices.Contains(st.WaitsOn, get.ID)) {
 			t.Errorf("%s step %s: machine %v, waits on %v; want waiting on %s", st.Kind, st.ID, st.Machine, st.WaitsOn, get.ID)
 		}
 	}
@@ -572,9 +613,131 @@ func TestAckNoneOverridesAckOption(t *testing.T) {
 				{Pattern: patAck, Scope: "site:" + all.ID, Choice: tc.choice},
 			}, "./migrate/scenarios")
 			s := siteWith(t, plan, scenarios, "nats.AckAll()")
-			if n := strings.Count(s.After, "AckPolicy:"); n != 1 || !strings.Contains(s.After, tc.want) || !parses(s.After) {
+			if n := strings.Count(s.After, "AckPolicy:"); n != 1 || !strings.Contains(strings.Join(strings.Fields(s.After), " "), tc.want) || !parses(s.After) {
 				t.Errorf("after names AckPolicy %d times, want once as %q:\n%s", n, tc.want, s.After)
 			}
 		})
+	}
+}
+
+// TestUnmappedSitesHaveNoStep checks that no step lists an unmapped site,
+// and that one on a component's handle still holds back its finish step.
+func TestUnmappedSitesHaveNoStep(t *testing.T) {
+	plan := planFor(t, nil, "./migrate/...")
+	unmapped := make(map[string]bool)
+	for _, s := range plan.Sites {
+		if s.Class == classUnmapped {
+			unmapped[s.ID] = true
+			if s.Step != "" {
+				t.Errorf("unmapped site %s names step %s", s.ID, s.Step)
+			}
+		}
+	}
+	if len(unmapped) == 0 {
+		t.Fatal("no unmapped site in the testdata")
+	}
+	for _, st := range plan.Steps {
+		for _, id := range st.Sites {
+			if unmapped[id] {
+				t.Errorf("step %s (%s) lists the unmapped site %s", st.ID, st.Kind, id)
+			}
+		}
+	}
+}
+
+// TestSiteFunctions checks the enclosing function of sites, and the
+// functions and test-only mark of their components.
+func TestSiteFunctions(t *testing.T) {
+	plan := planFor(t, nil, "./migrate/...")
+	for _, tc := range []struct{ file, before, want string }{
+		{"migrate/legacytests/legacy_test.go", "AddStream", "migrate/legacytests.TestLegacyAddStream"},
+		{scenarios, "nats.Context(r.ctx)", "migrate/scenarios.request.Create"},
+		{appFile, "JS nats.JetStreamContext", ""},
+	} {
+		if s := siteWith(t, plan, tc.file, tc.before); s.Function != tc.want {
+			t.Errorf("site %s: function %q, want %q", s.ID, s.Function, tc.want)
+		}
+	}
+	sites := make(map[string]Site)
+	for _, s := range plan.Sites {
+		sites[s.ID] = s
+	}
+	testOnly := 0
+	for _, c := range plan.Components {
+		all, fns := true, map[string]bool{}
+		for _, id := range c.Sites {
+			all = all && strings.HasSuffix(sites[id].Position.File, "_test.go")
+			if f := sites[id].Function; f != "" {
+				fns[f] = true
+			}
+		}
+		if c.TestOnly != all {
+			t.Errorf("component %s: test-only %v, want %v", c.ID, c.TestOnly, all)
+		}
+		if c.TestOnly {
+			testOnly++
+		}
+		want := slices.Sorted(maps.Keys(fns))
+		if !slices.Equal(c.Functions, want) {
+			t.Errorf("component %s: functions %v, want %v", c.ID, c.Functions, want)
+		}
+	}
+	if testOnly == 0 {
+		t.Error("no test-only component in the testdata")
+	}
+}
+
+// TestComponentDecisionListsComponents checks that the pending component
+// decision names the components it covers instead of counting sites.
+func TestComponentDecisionListsComponents(t *testing.T) {
+	plan := planFor(t, nil, "./migrate/independent", "./migrate/multifile")
+	var pd *Pending
+	for i := range plan.Pending {
+		if plan.Pending[i].Pattern == patComponent {
+			pd = &plan.Pending[i]
+		}
+	}
+	if pd == nil {
+		t.Fatal("no pending component decision")
+	}
+	var want []string
+	for _, c := range plan.Components {
+		want = append(want, c.ID)
+	}
+	if !slices.Equal(pd.Components, want) || pd.Sites != 0 {
+		t.Errorf("component decision covers components %v and %d sites, want components %v", pd.Components, pd.Sites, want)
+	}
+}
+
+// TestFinishPreview checks that add-handle shows the placeholder it adds,
+// and finish the lines it changes: the legacy root and the placeholder
+// before, the renamed sibling after.
+func TestFinishPreview(t *testing.T) {
+	plan := planFor(t, nil, "./migrate/fieldfmt/...")
+	var add, fin Step
+	for _, st := range plan.Steps {
+		if st.Component != "migrate/fieldfmt.Server.JS" {
+			continue
+		}
+		switch st.Kind {
+		case stepAdd:
+			add = st
+		case stepFinish:
+			fin = st
+		}
+	}
+	if !add.Machine || !fin.Machine {
+		t.Fatalf("add-handle %+v and finish %+v, want both machine steps", add, fin)
+	}
+	if !strings.Contains(add.After, "_ = js\n") {
+		t.Errorf("add-handle after lacks the placeholder:\n%s", add.After)
+	}
+	for _, want := range []string{"js, err := nc.JetStream()", "_ = js\n"} {
+		if !strings.Contains(fin.Before, want) {
+			t.Errorf("finish before lacks %q:\n%s", want, fin.Before)
+		}
+	}
+	if !strings.Contains(fin.After, "js, err := jetstream.New(nc)") || strings.Contains(fin.After, "_ = js") || strings.Contains(fin.After, "jsNew") {
+		t.Errorf("finish after:\n%s\nwant js, err := jetstream.New(nc) without placeholders or siblings", fin.After)
 	}
 }

@@ -15,8 +15,9 @@
 // (natsvet ./..., natsvet -fix ./...), as go vet -vettool=natsvet, and as
 // go fix -fixtool=natsvet. natsvet -version prints the build's module
 // version and revision. natsvet migrate plans the move off the legacy
-// JetStream API (natsvet migrate plan ./...) and prints the agent skill
-// that follows the plan (natsvet migrate skill).
+// JetStream API (natsvet migrate plan ./...), applies the plan's machine
+// steps one at a time (natsvet migrate apply ./...) and prints the agent
+// skill that follows the plan (natsvet migrate skill).
 package main
 
 import (
@@ -44,6 +45,7 @@ Usage:
     go vet -vettool=$(which %[1]s) packages   run the analyzers through go vet
     go fix -fixtool=$(which %[1]s) packages   apply the analyzers' fixes through go fix
     %[1]s migrate plan [flags] [packages]     plan the migration off the legacy JetStream API
+    %[1]s migrate apply [flags] [packages]    apply the plan's next machine step
     %[1]s migrate skill                       print the agent skill that follows a plan
     %[1]s help [analyzer | migrate]           describe the analyzers, one analyzer, or migrate
     %[1]s -version                            print the version

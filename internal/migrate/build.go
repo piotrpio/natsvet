@@ -57,14 +57,14 @@ func buildPlan(o options) (*Plan, error) {
 	p.cls = slices.DeleteFunc(p.cls, func(c *classified) bool { return c.drop })
 	units := p.buildUnits()
 	comps = p.mergeComponents(comps, units)
-	var pendingComps int
+	var pendingComps []string
 	for _, comp := range comps {
 		choice, _ := answers.lookup(patComponent, "", comp.id)
 		switch choice {
 		case "skip":
 			comp.skipped = true
 		case "":
-			pendingComps++
+			pendingComps = append(pendingComps, comp.id)
 		}
 	}
 	for _, c := range p.cls {
@@ -83,8 +83,13 @@ func buildPlan(o options) (*Plan, error) {
 		TableNatsVersion:  tableVersion,
 		ModuleNatsVersion: prog.natsVersion,
 	}
-	p.simulate(plan, steps)
+	steps = p.simulate(steps)
 	p.fill(plan, comps, units, steps, pendingComps)
+	for _, a := range plan.StaleAnswers {
+		if a.Pattern == patComponent && a.Choice == "skip" {
+			return nil, fmt.Errorf("the answer to skip %s names no component: its code changed (a renamed function or handle); answer the component again under the id a new plan gives it, or remove the answer", a.Scope)
+		}
+	}
 	return plan, nil
 }
 
@@ -198,14 +203,18 @@ func (p *planner) mergeComponents(comps []*component, units []*unit) []*componen
 	return out
 }
 
-// simulate applies the machine steps in order and numbers every step. A
-// step whose edits cannot be applied loses them, and so do the later
-// steps of its component.
-func (p *planner) simulate(plan *Plan, steps []*stepPlan) {
+// simulate applies the machine steps in order, and numbers the steps it
+// returns. A step whose edits cannot be applied loses them, and so do the
+// later steps of its component; a component step that cannot be applied is
+// replaced by its parts.
+func (p *planner) simulate(steps []*stepPlan) []*stepPlan {
 	sm := newSim(p)
+	sm.seed()
 	broken := make(map[*component][]string)
-	for i, st := range steps {
-		st.out = &Step{ID: fmt.Sprintf("S%d", i), Kind: st.kind, Summary: st.summary, Command: st.command}
+	var out []*stepPlan
+	var run func(st *stepPlan)
+	run = func(st *stepPlan) {
+		st.out = &Step{Kind: st.kind, Summary: st.summary, Command: st.command}
 		if st.comp != nil {
 			st.out.Component = st.comp.id
 			if b := broken[st.comp]; len(b) > 0 && st.machine && st.kind != stepSite {
@@ -214,9 +223,26 @@ func (p *planner) simulate(plan *Plan, steps []*stepPlan) {
 			}
 		}
 		if !st.machine {
-			continue
+			out = append(out, st)
+			return
 		}
-		if err := sm.apply(st); err != nil {
+		before := sm.state()
+		if len(st.parts) > 0 {
+			snap := sm.snapshot()
+			if err := sm.applyComponent(st); err != nil {
+				sm.restore(snap)
+				for _, part := range st.parts {
+					run(part)
+				}
+				return
+			}
+			sm.preview(st, before)
+			out = append(out, st)
+			return
+		}
+		if err := sm.apply(st); err == nil {
+			sm.preview(st, before)
+		} else {
 			st.machine = false
 			st.out.Expect, st.out.Edits = nil, nil
 			st.facts = append(st.facts, "the planner could not apply its edits ("+err.Error()+"); make them by hand")
@@ -229,7 +255,15 @@ func (p *planner) simulate(plan *Plan, steps []*stepPlan) {
 				}
 			}
 		}
+		out = append(out, st)
 	}
+	for _, st := range steps {
+		run(st)
+	}
+	for i, st := range out {
+		st.out.ID = fmt.Sprintf("S%d", i)
+	}
+	steps = out
 	addStep := make(map[*component]string)
 	for _, st := range steps {
 		if st.kind == stepAdd {
@@ -249,11 +283,12 @@ func (p *planner) simulate(plan *Plan, steps []*stepPlan) {
 			st.out.Sites = append(st.out.Sites, c.id)
 		}
 	}
+	return steps
 }
 
 // fill writes the sites, components, pending decisions, follow-ups and
 // counts into the plan.
-func (p *planner) fill(plan *Plan, comps []*component, units []*unit, steps []*stepPlan, pendingComps int) {
+func (p *planner) fill(plan *Plan, comps []*component, units []*unit, steps []*stepPlan, pendingComps []string) {
 	stepOf := make(map[*classified]string)
 	for _, st := range steps {
 		plan.Steps = append(plan.Steps, *st.out)
@@ -272,6 +307,7 @@ func (p *planner) fill(plan *Plan, comps []*component, units []*unit, steps []*s
 		s := Site{
 			ID:       c.id,
 			Position: p.pos(c.s.anchor.Pos()),
+			Function: p.funcName(c.s),
 			Class:    c.class,
 			Summary:  c.summary,
 			Before:   p.beforeText(c),
@@ -371,12 +407,12 @@ func (p *planner) fill(plan *Plan, comps []*component, units []*unit, steps []*s
 			}
 		}
 	}
-	if pendingComps > 0 {
+	if len(pendingComps) > 0 {
 		var ids []string
 		for _, o := range patterns[patComponent].options {
 			ids = append(ids, o.ID)
 		}
-		plan.Pending = append(plan.Pending, Pending{Pattern: patComponent, Scope: "module", Sites: pendingComps, Options: ids, Default: "migrate",
+		plan.Pending = append(plan.Pending, Pending{Pattern: patComponent, Scope: "module", Components: pendingComps, Options: ids, Default: "migrate",
 			Reason: "skip keeps code that must stay on the legacy API (tests of the legacy API, compatibility shims) out of the steps; the steps assume migrate until answered"})
 	}
 	// Components.
@@ -393,11 +429,18 @@ func (p *planner) fill(plan *Plan, comps []*component, units []*unit, steps []*s
 				pc.Steps = append(pc.Steps, st.out.ID)
 			}
 		}
+		pc.TestOnly = true
 		for _, c := range p.cls {
 			if c.comp == comp {
 				pc.Sites = append(pc.Sites, c.id)
+				if fn := p.funcName(c.s); fn != "" && !slices.Contains(pc.Functions, fn) {
+					pc.Functions = append(pc.Functions, fn)
+				}
+				pc.TestOnly = pc.TestOnly && c.s.file.test
 			}
 		}
+		slices.Sort(pc.Functions)
+		pc.TestOnly = pc.TestOnly && len(pc.Sites) > 0
 		plan.Components = append(plan.Components, pc)
 	}
 	// Files the plan covers.
@@ -419,11 +462,8 @@ func (p *planner) fill(plan *Plan, comps []*component, units []*unit, steps []*s
 		compIDs[c.ID] = true
 	}
 	plan.StaleAnswers = p.answers.stale(siteIDs, compIDs)
-	switch {
-	case older(p.prog.natsVersion, tableVersion):
-		plan.Notes = append(plan.Notes, fmt.Sprintf("the module requires nats.go %s: apply step S0 and plan again; this plan was classified against the jetstream package of %s", p.prog.natsVersion, p.prog.natsVersion))
-	case older(tableVersion, p.prog.natsVersion):
-		plan.Notes = append(plan.Notes, fmt.Sprintf("the module requires nats.go %s; the behavior facts in this plan were verified against %s", p.prog.natsVersion, tableVersion))
+	if note := versionNote(p.prog.natsVersion); note != "" {
+		plan.Notes = append(plan.Notes, note)
 	}
 	if p.prog.js == nil {
 		plan.Notes = append(plan.Notes, "the module's nats.go has no jetstream package; apply step S0 and plan again")

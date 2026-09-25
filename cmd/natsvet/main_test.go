@@ -57,11 +57,12 @@ func TestHelpNamesMigrate(t *testing.T) {
 		code int
 		also []string
 	}{
-		{[]string{"-h"}, 0, []string{"-legacyjs.enable", "natsvet help migrate"}},
+		{[]string{"-h"}, 0, []string{"-legacyjs.enable", "natsvet help migrate", "natsvet migrate apply"}},
 		{[]string{"--help"}, 0, []string{"-legacyjs.enable"}},
 		{[]string{"help"}, 0, []string{"Registered analyzers"}},
 		{nil, 1, []string{"natsvet help"}},
-		{[]string{"help", "migrate"}, 0, []string{"-decisions", "natsvet-migrate.json", "migrate skill"}},
+		{[]string{"help", "migrate"}, 0, []string{"-decisions", "natsvet-migrate.json", "migrate skill", "migrate apply", "-component", "-dry-run"}},
+		{[]string{"migrate", "apply", "-h"}, 0, []string{"-dry-run"}},
 		{[]string{"migrate", "--help"}, 0, []string{"-format"}},
 		{[]string{"migrate", "plan", "-h"}, 0, []string{"-tests"}},
 		{[]string{"migrate"}, 2, []string{"migrate plan"}},

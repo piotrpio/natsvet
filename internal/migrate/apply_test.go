@@ -15,8 +15,6 @@ package migrate
 
 import (
 	"cmp"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"go/token"
@@ -25,7 +23,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 
@@ -88,7 +85,7 @@ func planWithDefaults(t *testing.T, dir string, patterns []string) *Plan {
 	t.Helper()
 	var answers []Answer
 	for range 4 {
-		d := Decisions{Version: 1, Answers: answers}
+		d := Decisions{Version: decisionsVersion, Answers: answers}
 		b, _ := json.MarshalIndent(d, "", "  ")
 		if err := os.WriteFile(filepath.Join(dir, decisionsFile), b, 0o644); err != nil {
 			t.Fatal(err)
@@ -111,38 +108,25 @@ func planWithDefaults(t *testing.T, dir string, patterns []string) *Plan {
 // applyStep applies one machine step to the module in dir, refusing a file
 // whose hash differs from the step's.
 func applyStep(dir string, st Step) error {
-	for _, e := range st.Expect {
-		b, err := os.ReadFile(filepath.Join(dir, e.File))
-		if err != nil {
-			return err
-		}
-		h := sha256.Sum256(b)
-		if got := hex.EncodeToString(h[:]); got != e.SHA256 {
-			return fmt.Errorf("step %s: %s changed since the plan (sha256 %s, want %s)", st.ID, e.File, got, e.SHA256)
-		}
+	tr := newTree(dir)
+	if err := tr.splice(st); err != nil {
+		return err
 	}
-	byFile := make(map[string][]Edit)
-	for _, e := range st.Edits {
-		byFile[e.File] = append(byFile[e.File], e)
-	}
-	for file, edits := range byFile {
-		path := filepath.Join(dir, file)
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		sort.SliceStable(edits, func(i, j int) bool { return edits[i].Start > edits[j].Start })
-		for _, e := range edits {
-			b = append(b[:e.Start:e.Start], append([]byte(e.New), b[e.End:]...)...)
-		}
-		if err := os.WriteFile(path, b, 0o644); err != nil {
-			return err
-		}
-	}
-	return nil
+	return tr.write()
 }
 
 // typeErrors type-checks the packages of dir and returns their errors.
+// fileGofmtClean reports whether the file at path is formatted as gofmt
+// formats it.
+func fileGofmtClean(t *testing.T, path string) bool {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return gofmtClean(b)
+}
+
 func typeErrors(dir string, patterns ...string) []string {
 	cfg := &packages.Config{Mode: packages.LoadAllSyntax, Dir: dir, Tests: true, Fset: token.NewFileSet(), Env: append(os.Environ(), "GOFLAGS=-mod=mod", "GOPROXY=off")}
 	pkgs, err := packages.Load(cfg, patterns...)
@@ -212,7 +196,7 @@ func expectedResidue(plan *Plan, applied map[string]bool) []string {
 	}
 	removed := make(map[string]bool) // components whose removal applied
 	for _, st := range plan.Steps {
-		if st.Kind == stepRemove && applied[st.ID] {
+		if st.Kind == stepFinish && applied[st.ID] {
 			removed[st.Component] = true
 		}
 	}
@@ -243,7 +227,8 @@ func expectedResidue(plan *Plan, applied map[string]bool) []string {
 func legacyName(sym string) string { return sym }
 
 // applyAll applies every machine step of plan in order, type-checking
-// after each, and returns the applied step ids.
+// after each and checking that a gofmt-clean file stays gofmt-clean, and
+// returns the applied step ids.
 func applyAll(t *testing.T, dir string, plan *Plan, patterns ...string) map[string]bool {
 	t.Helper()
 	applied := make(map[string]bool)
@@ -251,8 +236,18 @@ func applyAll(t *testing.T, dir string, plan *Plan, patterns ...string) map[stri
 		if !st.Machine {
 			continue
 		}
+		clean := make(map[string]bool)
+		for _, e := range st.Expect {
+			clean[e.File] = fileGofmtClean(t, filepath.Join(dir, e.File))
+		}
 		if err := applyStep(dir, st); err != nil {
 			t.Fatal(err)
+		}
+		for _, e := range st.Expect {
+			if clean[e.File] && !fileGofmtClean(t, filepath.Join(dir, e.File)) {
+				b, _ := os.ReadFile(filepath.Join(dir, e.File))
+				t.Errorf("step %s (%s) leaves %s not gofmt-clean:\n%s", st.ID, st.Kind, e.File, b)
+			}
 		}
 		if errs := typeErrors(dir, patterns...); len(errs) > 0 {
 			var files []string
@@ -407,6 +402,30 @@ func TestApplyCorpus(t *testing.T) {
 	if after := ruleReports(t, dir, patterns...); !slices.Equal(after, before) {
 		t.Errorf("the other natsvet rules report differently after the migration\nbefore: %v\nafter:  %v", before, after)
 	}
+	// Planning again after every step reaches the same files.
+	replanned := copyTree(t, filepath.Join(corpus, repo))
+	if err := os.WriteFile(filepath.Join(replanned, decisionsFile), mustRead(t, filepath.Join(dir, decisionsFile)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for range len(plan.Steps) + 1 {
+		p, err := buildPlan(options{dir: replanned, patterns: patterns, tests: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		i := slices.IndexFunc(p.Steps, func(st Step) bool { return st.Machine })
+		if i < 0 {
+			break
+		}
+		if err := applyStep(replanned, p.Steps[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	chained, stepwise := goFiles(t, dir, "."), goFiles(t, replanned, ".")
+	for path, w := range chained {
+		if stepwise[path] != w {
+			t.Errorf("planning again after every step, %s differs from the uninterrupted plan", path)
+		}
+	}
 	out := os.Getenv("NATSVET_MIGRATE_PLAN_OUT")
 	if out != "" {
 		f, err := os.Create(out)
@@ -418,4 +437,13 @@ func TestApplyCorpus(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+}
+
+func mustRead(t *testing.T, path string) []byte {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }

@@ -1,0 +1,22 @@
+	// guided: begin
+	sub, err := jsNew.CreateOrUpdateConsumer(context.Background(), "ORDERS", jetstream.ConsumerConfig{
+		Durable:       "worker",
+		FilterSubject: "orders.new",
+	})
+	if err != nil {
+		return 0, err
+	}
+	batch, err := sub.Fetch(10)
+	if err != nil {
+		return 0, err
+	}
+	for m := range batch.Messages() {
+		if err := m.Ack(); err != nil {
+			return 0, err
+		}
+		acked++
+	}
+	if err := batch.Error(); err != nil {
+		return 0, err
+	}
+	// guided: end

@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"slices"
 	"strings"
 	"text/template"
 )
@@ -58,7 +59,7 @@ var mdFuncs = template.FuncMap{
 	"loose": func(plan *Plan) []Step {
 		var out []Step
 		for _, st := range plan.Steps {
-			if st.Component == "" {
+			if st.Component == "" && st.Kind != stepGoGet {
 				out = append(out, st)
 			}
 		}
@@ -75,57 +76,50 @@ var mdFuncs = template.FuncMap{
 		}
 		return out
 	},
+	// own returns the sites a step shows: those listed by it that belong
+	// to it, so that a site several steps list is shown once.
+	"own": func(plan *Plan, st Step) []Site {
+		var out []Site
+		for _, s := range plan.Sites {
+			if s.Step == st.ID && slices.Contains(st.Sites, s.ID) {
+				out = append(out, s)
+			}
+		}
+		return out
+	},
+	// stepless returns the sites of a class that no step shows: unmapped
+	// ones, or (with class "") skipped ones.
+	"stepless": func(plan *Plan, class string) []Site {
+		var out []Site
+		for _, s := range plan.Sites {
+			if s.Step == "" && ((class == "" && s.Class != classUnmapped) || s.Class == class) {
+				out = append(out, s)
+			}
+		}
+		return out
+	},
+	"component": func(plan *Plan, id string) Component {
+		for _, c := range plan.Components {
+			if c.ID == id {
+				return c
+			}
+		}
+		return Component{ID: id}
+	},
+	"files": func(plan *Plan, c Component) []string {
+		var out []string
+		for _, s := range plan.Sites {
+			if slices.Contains(c.Sites, s.ID) && !slices.Contains(out, s.Position.File) {
+				out = append(out, s.Position.File)
+			}
+		}
+		return out
+	},
 	"join": strings.Join,
 }
 
-var mdTemplate = template.Must(template.New("plan").Funcs(mdFuncs).Parse(`# Migration plan for {{.Module}}
-
-{{.Skill}}. Plan schema version {{.SchemaVersion}}; mapping verified against nats.go {{.TableNatsVersion}}; the module requires {{or .ModuleNatsVersion "an unknown nats.go"}}.
-{{range .Notes}}
-> {{.}}
-{{end}}
-## Summary
-
-- Legacy uses: {{.Counts.LegacyUses}} in {{.Counts.Sites}} sites
-- Mechanical: {{.Counts.Mechanical}}, guided: {{.Counts.Guided}}, decision: {{.Counts.Decision}}, unmapped: {{.Counts.Unmapped}}, skipped: {{.Counts.Skipped}}
-- Components: {{len .Components}}, steps: {{len .Steps}}
-{{if .Pending}}
-## Pending decisions
-
-Ask the user each question, record the answer in natsvet-migrate.json, and plan again.
-{{range .Pending}}
-- **{{.Pattern}}** ({{.Scope}}, {{.Sites}} {{if eq .Pattern "component"}}component{{else}}site{{end}}{{if ne .Sites 1}}s{{end}}): {{.Reason}}. Options: {{join .Options ", "}}. Default: **{{.Default}}**.
-{{- end}}
-{{end}}{{if .StaleAnswers}}
-## Stale answers
-
-These answers in natsvet-migrate.json name a scope that no longer exists:
-{{range .StaleAnswers}}
-- {{.Pattern}} = {{.Choice}} at {{.Scope}}
-{{- end}}
-{{end}}{{$plan := .}}{{range .Steps}}{{if eq .Kind "go-get"}}
-## Step {{.ID}}: raise nats.go
-
-{{.Summary}}.
-
-    {{.Command}}
-{{end}}{{end}}{{range .Components}}
-## Component {{.ID}}{{if .Skipped}} (skipped){{end}}
-
-Handles: {{join .Handles ", "}}.{{if .OneCommit}} Safe to apply in one commit.{{end}}
-{{range .Blocked}}
-- Blocked at {{.Position.File}}:{{.Position.Line}}:{{.Position.Column}}: {{.Reason}}; removal and rename are omitted.
-{{- end}}
-{{range steps $plan .Steps}}
-### Step {{.ID}} ({{.Kind}}{{if .Machine}}, machine edits{{end}})
-
-{{.Summary}}.
-{{- if .WaitsOn}} Waits on: {{join .WaitsOn ", "}}.{{end}}
-{{range .Facts}}
-- {{.}}
-{{- end}}
-{{range sites $plan .Sites}}
-#### Site {{.ID}}: {{.Class}}
+var mdTemplate = template.Must(template.New("plan").Funcs(mdFuncs).Parse(`{{define "site"}}
+#### Site {{.ID}}: {{.Class}}{{if .Function}} in {{.Function}}{{end}}
 
 {{.Summary}}.{{if .Ref}} See {{.Ref}}.{{end}}
 {{if .Before}}
@@ -150,37 +144,71 @@ Template:
   - {{.ID}}: {{.Summary}}
 {{- end}}
 {{- end}}
-{{end}}{{end}}{{end}}{{with loose .}}
-## Sites outside components
-{{range .}}
+{{end}}{{define "step"}}
 ### Step {{.ID}} ({{.Kind}}{{if .Machine}}, machine edits{{end}})
 
 {{.Summary}}.
+{{- if .WaitsOn}} Waits on: {{join .WaitsOn ", "}}.{{end}}
 {{range .Facts}}
 - {{.}}
-{{- end}}
-{{range sites $plan .Sites}}
-#### Site {{.ID}}: {{.Class}}
-
-{{.Summary}}.{{if .Ref}} See {{.Ref}}.{{end}}
-{{if .Before}}
+{{- end}}{{if .Before}}
 Before:
 
 {{code .Before}}
-{{end}}{{if .After}}
+
 After:
 
 {{code .After}}
-{{end}}{{if .Template}}
-Template:
+{{end}}{{end}}# Migration plan for {{.Module}}
 
-{{code .Template}}
-{{end}}{{range .Facts}}
-- Fact: {{.}}
-{{- end}}{{range .Notes}}
-- Note: {{.}}
+{{.Skill}}. Plan schema version {{.SchemaVersion}}; mapping verified against nats.go {{.TableNatsVersion}}; the module requires {{or .ModuleNatsVersion "an unknown nats.go"}}.
+{{range .Notes}}
+> {{.}}
+{{end}}
+## Summary
+
+- Legacy uses: {{.Counts.LegacyUses}} in {{.Counts.Sites}} sites
+- Mechanical: {{.Counts.Mechanical}}, guided: {{.Counts.Guided}}, decision: {{.Counts.Decision}}, unmapped: {{.Counts.Unmapped}}, skipped: {{.Counts.Skipped}}
+- Components: {{len .Components}}, steps: {{len .Steps}}
+{{$plan := .}}{{if .Pending}}
+## Pending decisions
+
+Ask the user each question, record the answer in natsvet-migrate.json, and plan again.
+{{range .Pending}}
+- **{{.Pattern}}** ({{.Scope}}, {{if .Components}}{{len .Components}} component{{if ne (len .Components) 1}}s{{end}}{{else}}{{.Sites}} site{{if ne .Sites 1}}s{{end}}{{end}}): {{.Reason}}. Options: {{join .Options ", "}}. Default: **{{.Default}}**.
+{{- range .Components}}{{with component $plan .}}
+  - {{.ID}}: handles {{join .Handles ", "}}; files {{join (files $plan .) ", "}}{{if .Functions}}; functions {{join .Functions ", "}}{{end}}{{if .TestOnly}}; test code only{{end}}
+{{- end}}{{end}}
 {{- end}}
-{{end}}{{end}}{{end}}{{if .FollowUps}}
+{{end}}{{if .StaleAnswers}}
+## Stale answers
+
+These answers in natsvet-migrate.json name a scope that no longer exists:
+{{range .StaleAnswers}}
+- {{.Pattern}} = {{.Choice}} at {{.Scope}}
+{{- end}}
+{{end}}{{range .Steps}}{{if eq .Kind "go-get"}}
+## Step {{.ID}}: raise nats.go
+
+{{.Summary}}.
+
+    {{.Command}}
+{{end}}{{end}}{{range .Components}}
+## Component {{.ID}}{{if .Skipped}} (skipped){{end}}
+
+Handles: {{join .Handles ", "}}.{{if .OneCommit}} Safe to apply in one commit.{{end}}{{if .TestOnly}} Test code only.{{end}}
+{{range .Blocked}}
+- Blocked at {{.Position.File}}:{{.Position.Line}}:{{.Position.Column}}: {{.Reason}}; the finish step is omitted.
+{{- end}}
+{{range steps $plan .Steps}}{{template "step" .}}{{range own $plan .}}{{template "site" .}}{{end}}{{end}}{{end}}{{with loose .}}
+## Sites outside components
+{{range .}}{{template "step" .}}{{range own $plan .}}{{template "site" .}}{{end}}{{end}}{{end}}{{with stepless . "unmapped"}}
+## Unmapped sites
+
+No jetstream counterpart; the code stays on the legacy API until the user decides otherwise.
+{{range .}}{{template "site" .}}{{end}}{{end}}{{with stepless . ""}}
+## Skipped sites
+{{range .}}{{template "site" .}}{{end}}{{end}}{{if .FollowUps}}
 ## Follow-ups
 
 Not needed to finish the migration:

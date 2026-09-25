@@ -27,6 +27,10 @@ import (
 // decisionsFile is the default name of the answers file at the module root.
 const decisionsFile = "natsvet-migrate.json"
 
+// decisionsVersion is the version of natsvet-migrate.json this planner
+// reads.
+const decisionsVersion = 2
+
 // Decision patterns.
 const (
 	patSubscribeTarget = "subscribe-target"
@@ -116,8 +120,8 @@ func readDecisions(moduleDir, path string) (*answerSet, error) {
 	if err := dec.Decode(&d); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	if d.Version != 1 {
-		return nil, fmt.Errorf("%s: version %d, want 1", path, d.Version)
+	if d.Version != decisionsVersion {
+		return nil, fmt.Errorf("%s: version %d; this natsvet reads version %d, whose ids name code rather than positions (component:<pkg>.<Func>#<handle> or component:<pkg>.<Type>.<field>, site:<pkg>.<Func>#<Symbol>@<hash>): plan again and answer under the new plan's ids", path, d.Version, decisionsVersion)
 	}
 	for _, a := range d.Answers {
 		def, ok := patterns[a.Pattern]

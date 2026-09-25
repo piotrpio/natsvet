@@ -14,6 +14,8 @@
 package migrate
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"go/ast"
 	"go/token"
@@ -110,8 +112,9 @@ func (p *planner) posID(n token.Pos) string {
 // own the message uses of their handlers.
 func (p *planner) classifyAll(compOf map[*site]*component) {
 	p.bySite = make(map[*site]*classified)
+	ids := p.siteIDs()
 	for _, s := range p.sites {
-		c := &classified{s: s, id: p.posID(s.anchor.Pos()), comp: compOf[s]}
+		c := &classified{s: s, id: ids[s], comp: compOf[s]}
 		p.cls = append(p.cls, c)
 		p.bySite[s] = c
 	}
@@ -204,6 +207,36 @@ func (p *planner) span(c *classified) ast.Node {
 		}
 	}
 	return c.s.anchor
+}
+
+// funcName returns the function or method enclosing a site (see
+// program.scope), or "" at package level.
+func (p *planner) funcName(s *site) string {
+	name, inFunc := p.prog.scope(s.file, s.stack)
+	if !inFunc {
+		return ""
+	}
+	return name
+}
+
+// siteIDs names every site by its enclosing function (its package at
+// package level), its legacy symbol and a hash of its text, so that an id
+// survives edits around the site; sites of identical text in one function
+// are numbered in source order.
+func (p *planner) siteIDs() map[*site]string {
+	out := make(map[*site]string, len(p.sites))
+	seen := make(map[string]int)
+	for _, s := range p.sites {
+		scope, _ := p.prog.scope(s.file, s.stack)
+		sum := sha256.Sum256([]byte(strings.Join(strings.Fields(p.prog.text(s.anchor)), " ")))
+		id := fmt.Sprintf("%s#%s@%s", scope, s.sym, hex.EncodeToString(sum[:3]))
+		seen[id]++
+		if n := seen[id]; n > 1 {
+			id = fmt.Sprintf("%s.%d", id, n)
+		}
+		out[s] = id
+	}
+	return out
 }
 
 func (p *planner) beforeText(c *classified) string {

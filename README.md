@@ -114,11 +114,13 @@ mirrors a server or client validation cites the function it mirrors in its spec 
 ## Migrating off the legacy JetStream API
 
 `legacyjs` counts the legacy API; `natsvet migrate` plans the move to the `jetstream`
-package:
+package and applies it one step at a time:
 
 ```sh
-natsvet migrate plan ./...                    # JSON plan
+natsvet migrate plan ./...                    # JSON plan (schema version 2)
 natsvet migrate plan -format markdown ./...   # the same plan as a guide
+natsvet migrate apply ./...                   # apply the next machine step
+natsvet migrate apply -dry-run ./...          # show it as a diff instead
 natsvet migrate skill                         # instructions for an agent following the plan
 natsvet help migrate                          # usage and flags
 ```
@@ -127,7 +129,9 @@ The plan classifies every legacy site as mechanical (exact replacement and byte-
 edits), guided (a template and the facts it needs), a decision for the user (with a
 behavior-preserving default), or unmapped, and orders the work into steps after each of
 which the module compiles. Answers to its decisions go in `natsvet-migrate.json` at the
-module root. The planner never edits code.
+module root. Planning never edits code; `apply` plans afresh, writes one machine step,
+type-checks what it touched and restores the files if they do not compile. Plans resume
+from any tree their own steps and hand edits leave, so planning again is always safe.
 
 ## Corpus
 

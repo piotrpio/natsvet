@@ -72,6 +72,9 @@ type handle struct {
 	// threadable: a sibling can be declared and fed next to this handle.
 	threadable bool
 	why        string
+	// present is the declaring identifier of the sibling when the loaded
+	// code already has it, as an earlier add-handle step left it.
+	present *ast.Ident
 }
 
 // flowKind says how a handle value reaches another handle.
@@ -212,7 +215,107 @@ func buildGraph(prog *program, sites []*site) *graph {
 		}
 	}
 	g.threadability()
+	g.recognizeSiblings()
 	return g
+}
+
+// recognizeSiblings finds the siblings an earlier add-handle step declared:
+// a declaration named as siblingName would have named it before it
+// existed (<name>New, or with a number), of the sibling's type, later in
+// the same scope for a local, in the same struct for a field, or in the
+// same parameter list for a parameter.
+func (g *graph) recognizeSiblings() {
+	for _, h := range g.handles {
+		if !h.threadable {
+			continue
+		}
+		base := h.ident.Name + "New"
+		for i := 1; i < 10 && h.present == nil; i++ {
+			name := base
+			if i > 1 {
+				name = fmt.Sprintf("%s%d", base, i)
+			}
+			if id := g.siblingCandidate(h, name); id != nil {
+				h.present, h.sibling = id, name
+			}
+		}
+	}
+}
+
+// siblingCandidate returns the declaration named name that sits where a
+// sibling of h would, with the sibling's type.
+func (g *graph) siblingCandidate(h *handle, name string) *ast.Ident {
+	info := h.file.info()
+	var cand *ast.Ident
+	switch h.kind {
+	case handleField, handleParam:
+		path, _ := astutil.PathEnclosingInterval(h.file.ast, h.ident.Pos(), h.ident.End())
+		for _, n := range path {
+			fl, ok := n.(*ast.FieldList)
+			if !ok {
+				continue
+			}
+			for _, fld := range fl.List {
+				for _, nm := range fld.Names {
+					if nm.Name == name {
+						cand = nm
+					}
+				}
+			}
+			break
+		}
+	case handleLocal:
+		v := info.Defs[h.ident].(*types.Var)
+		if v.Parent() == nil {
+			return nil
+		}
+		o := v.Parent().Lookup(name)
+		if o == nil || (v.Parent() != v.Pkg().Scope() && o.Pos() < h.ident.Pos()) {
+			return nil
+		}
+		if f := g.prog.fileOf(o.Pos()); f != nil {
+			cand = identAt(f.ast, o.Pos())
+		}
+	}
+	if cand == nil {
+		return nil
+	}
+	obj := g.prog.fileOf(cand.Pos()).info().Defs[cand]
+	if obj == nil || types.TypeString(obj.Type(), func(p *types.Package) string { return p.Name() }) != h.newType {
+		return nil
+	}
+	return cand
+}
+
+// identAt returns the identifier of f that starts at pos.
+func identAt(f *ast.File, pos token.Pos) *ast.Ident {
+	var out *ast.Ident
+	ast.Inspect(f, func(n ast.Node) bool {
+		if out != nil || n == nil || n.Pos() > pos || n.End() <= pos {
+			return false
+		}
+		if id, ok := n.(*ast.Ident); ok && id.Pos() == pos {
+			out = id
+		}
+		return true
+	})
+	return out
+}
+
+// isPlaceholder reports whether stmt is `_ = x`, the line an add-handle
+// step writes to keep a local handle or sibling used.
+func isPlaceholder(stmt ast.Node) (ast.Expr, bool) {
+	as, ok := stmt.(*ast.AssignStmt)
+	if !ok || as.Tok != token.ASSIGN || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+		return nil, false
+	}
+	if id, ok := as.Lhs[0].(*ast.Ident); !ok || id.Name != "_" {
+		return nil, false
+	}
+	if _, ok := ast.Unparen(as.Rhs[0]).(*ast.Ident); !ok {
+		return nil, false
+	}
+	return as.Rhs[0], true
 }
 
 // collectHandles records every declaration of a handle-typed object in the
@@ -570,6 +673,9 @@ func (g *graph) collectOtherUses() {
 			if known[expr.Pos()] || parent < 0 {
 				return true
 			}
+			if _, ok := isPlaceholder(stack[parent]); ok {
+				return true
+			}
 			switch p := stack[parent].(type) {
 			case *ast.SelectorExpr:
 				if p.X == expr && isLegacyMethod(info, p) {
@@ -680,11 +786,37 @@ func (g *graph) components(sites []*site) []*component {
 		out = append(out, c)
 	}
 	slices.SortFunc(out, func(a, b *component) int { return g.cmpPos(firstPos(a), firstPos(b)) })
+	seen := make(map[string]int)
 	for _, c := range out {
-		p := g.prog.fset.Position(firstPos(c))
-		c.id = fmt.Sprintf("%s:%d:%d", g.prog.fileOf(firstPos(c)).rel, p.Line, p.Column)
+		id := g.componentID(c)
+		seen[id]++
+		if n := seen[id]; n > 1 {
+			id = fmt.Sprintf("%s.%d", id, n)
+		}
+		c.id = id
 	}
 	return out
+}
+
+// componentID names a component by the declaration of its first handle:
+// <pkg>.<Type>.<field> for a struct field, else the enclosing function
+// (its package at package level) and the handle's name, <pkg>.<Func>#<name>.
+func (g *graph) componentID(c *component) string {
+	if len(c.handles) == 0 {
+		p := g.prog.fset.Position(firstPos(c))
+		return fmt.Sprintf("%s:%d:%d", g.prog.fileOf(firstPos(c)).rel, p.Line, p.Column)
+	}
+	h := c.handles[0]
+	path, _ := astutil.PathEnclosingInterval(h.file.ast, h.ident.Pos(), h.ident.End())
+	scope, inFunc := g.prog.scope(h.file, path)
+	if h.kind == handleField && !inFunc {
+		for _, n := range path {
+			if ts, ok := n.(*ast.TypeSpec); ok {
+				return scope + "." + ts.Name.Name + "." + h.ident.Name
+			}
+		}
+	}
+	return scope + "#" + h.ident.Name
 }
 
 func firstPos(c *component) token.Pos {

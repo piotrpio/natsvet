@@ -710,9 +710,15 @@ between steps, none of which fits a per-package analyzer or a `SuggestedFix`.
   (a `<name>New` sibling, the sites, removal, rename) that compiles after every step;
   follow-ups. Answers live in `natsvet-migrate.json` at the module root; `natsvet migrate
   skill` prints the agent skill that follows the plan. It never edits code.
-- **`migrate-apply`** (next): `natsvet migrate apply` executes a plan's machine steps with
-  the same hash checks the test-only applier uses today, and threads handles through
-  function results, the largest gap the corpus showed.
+- **`migrate-hardening`** (done): after the first agent-driven run (nats-surveyor), plans
+  resume from any tree their own steps leave (existing `<name>New` siblings and `_ =`
+  placeholders are recognized), removal and rename are one `finish` step, steps keep
+  gofmt-clean files clean, a package-local mechanical component is one `component` step,
+  step 0 pins the verified nats.go, ids name code instead of positions (a stale `skip`
+  fails the plan), sites name their function, and `natsvet migrate apply` plans afresh
+  and writes the next machine step with a type-check and rollback. Plan schema 2.
+- **`migrate-threading`** (next): thread handles through function results, the largest
+  gap the corpus showed.
 
 ## 4. Testing
 
@@ -837,8 +843,11 @@ corpus-driven corrections live.
    plan with a type-check after each; on natscli, go-choria and eventing-natss the plans
    are exact about what is left but mostly guided, because their handles come from
    runtime options, interface methods and test doubles.
-10. Later, separate designs: `migrate-apply`, orbit.go recommendation rules, orbit.go API
-    rules.
+10. **`migrate-hardening`** (done): the fixes from the nats-surveyor trial and
+    `natsvet migrate apply` (§3.5): resumable plans, the `finish` and `component` steps,
+    gofmt-stable steps, stable ids, plan schema 2.
+11. Later, separate designs: `migrate-threading`, orbit.go recommendation rules, orbit.go
+    API rules.
 
 ## 7. Code conventions for the implementing repository
 

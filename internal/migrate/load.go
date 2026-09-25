@@ -182,3 +182,39 @@ func (prog *program) fileOf(pos token.Pos) *srcFile {
 func (prog *program) offset(pos token.Pos) int {
 	return prog.fset.Position(pos).Offset
 }
+
+// scope names the declaration enclosing a node, given the node's ancestors
+// in f: <pkg>.<Func> or <pkg>.<Type>.<Method> inside a function (a
+// function literal counts as its declaration), <pkg> at package level.
+// <pkg> is the package's import path relative to the module path, or the
+// package's name for the module's root package.
+func (prog *program) scope(f *srcFile, ancestors []ast.Node) (string, bool) {
+	pkg := strings.TrimPrefix(f.pkg.PkgPath, prog.modulePath+"/")
+	if f.pkg.PkgPath == prog.modulePath || f.pkg.PkgPath == prog.modulePath+"_test" {
+		pkg = f.pkg.Name
+	}
+	for _, n := range ancestors {
+		fd, ok := n.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		name := pkg
+		if fd.Recv != nil && len(fd.Recv.List) > 0 {
+			t := fd.Recv.List[0].Type
+			if st, ok := t.(*ast.StarExpr); ok {
+				t = st.X
+			}
+			switch x := t.(type) {
+			case *ast.IndexExpr:
+				t = x.X
+			case *ast.IndexListExpr:
+				t = x.X
+			}
+			if id, ok := t.(*ast.Ident); ok {
+				name += "." + id.Name
+			}
+		}
+		return name + "." + fd.Name.Name, true
+	}
+	return pkg, false
+}
