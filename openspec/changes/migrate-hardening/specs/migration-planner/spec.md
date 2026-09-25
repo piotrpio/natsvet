@@ -136,7 +136,9 @@ An edit outside a site or component therefore leaves its id unchanged, and a sit
 
 The planner SHALL NOT write the file. A site whose decisions are all answered is reclassified by the chosen option (mechanical or guided, with its replacement or template), and answered patterns no longer appear as pending. A component answered `skip` SHALL keep its sites out of the steps, be counted separately, and block the removal of any declaration it shares with a migrated component. An answer naming an unknown pattern, option or scope SHALL be an error, and so SHALL a file of another version, with a message naming the id formats. An answer whose scope no longer exists is stale:
 - A stale `component` answer choosing `skip` SHALL be an error naming the answer. A skipped component never migrates, so its id can only disappear because its code changed, and falling back to the module answer would migrate code the user chose to keep.
-- Every other stale answer SHALL be reported, and the plan continues. Typically it names a site that has already migrated. Given the same packages and the same answers, the plan SHALL be byte-identical, including the order of every list of facts and notes.
+- Every other stale answer SHALL be reported, and the plan continues. Typically it names a site that has already migrated.
+
+Given the same packages and the same answers, the plan SHALL be byte-identical, including the order of every list of facts and notes.
 
 #### Scenario: One answer covers many sites
 - **WHEN** twelve `Subscribe` sites are pending and `natsvet-migrate.json` answers `subscribe-target` with `pull` for the module

@@ -191,6 +191,48 @@ The testdata packages `migrate/multifile` and `migrate/order` cover these, toget
 - At archive, the main spec's Purpose ("it plans; it never edits code") is revised to cover `apply`.
 - Rollback is reverting the change: schema 1 plans come back with it.
 
+## Resolved during implementation
+
+Found while implementing, each with a test:
+
+- **Sibling names of fields.** `siblingName` counts every field of the struct as taken, including the sibling `add-handle` declared, so on a re-plan a field's sibling would have been named `JSNew2`. Recognition therefore tries the names `siblingName` could have picked (`<name>New`, then numbered ones) and adopts the first that qualifies. For locals the lookup at the handle's position never saw the later sibling, which is why the first resume tests passed for locals only.
+- **Renames inside inserted text.** A create root's replacement (`kv, err := js.CreateKeyValue(...)`) carries sibling identifiers. With removal and rename in one batch, the renames cannot see text the batch inserts, so `finish` renames the siblings inside the replacement text before inserting it, and skips renames inside removed ranges (`_ = jsNew`, the sibling root).
+- **gofmt changes more than alignment.** Besides struct fields and composite-literal values, gofmt respaces binary expressions by nesting depth (`2 * time.Second` becomes `2*time.Second` inside a call) and realigns one-line methods. All of it is whitespace, so the token-aligned formatting batch covers it; the gofmt property found four such steps in the existing testdata.
+- **Resume after hand edits.** A test moves the sibling field to the end of its struct and inserts a line before the local sibling, then plans again and finishes: covered by the same-scope recognition the grill chose.
+- **`apply` exit codes.** The spec leaves the code for "nothing written, a person must act" open; `apply` uses 3 (go-get step, a `-component` run whose next step is not a machine step), so a scripted loop cannot spin on the same stop. `-dry-run` over several steps prints one diff per step, each against the tree the previous one leaves; `git apply` accepts the sequence.
+- **Step 0 without a new testdata module.** The "Newer nats.go" scenario is tested on the pure functions `stepZero` and `versionNote`: a testdata module on nats.go v1.54.0 would declare `go 1.26.0`, which the CI job on Go 1.25 cannot load.
+- **The testdata module path has no dot**, so its own imports count as standard library and share `context`'s group; gofmt accepts that, and real module paths have a dot.
+
+Corpus (`scripts/migrate-corpus.sh`; `TestApplyCorpus` applying every machine step with a type-check after each, then migrating a second copy by planning again after every step, which must reach the same files):
+
+| Repository | Sites (mech/guided/unmapped) | Components | Steps before → after | Machine | Waiting before → after |
+|---|---|---|---|---|---|
+| natscli | 25 (9/15/1) | 3 | 26 → 22 | 0 | 13 → 10 |
+| go-choria | 144 (72/71/1) | 21 | 120 → 100 | 1 | 66 → 47 |
+| eventing-natss | 262 (126/136/0) | 6 | 135 → 129 | 12 | 15 → 9 |
+
+Classification is unchanged in all three. Every drop in steps is a merged `remove-legacy`/`rename` pair or an unmapped site that no longer has a step; none of these components is package-local and fully mechanical, so none collapses into a `component` step. Five plans of each repository are byte-identical and name no absolute path; before this change eventing-natss gave five different plans in six runs.
+
+Trial (task 9.2): a fresh agent given only the binary, `natsvet migrate skill` and the user's answer from the first trial (`component: migrate` for the module) migrated nats-surveyor at `0539d22`, which now requires nats.go v1.53.1, so there is no step 0.
+- **The same plan shape as the report:** 37 legacy uses in 22 sites, 4 test-code components, 2 unmapped `Msg.Nak` sites. It now has 4 `component` steps where the report had 8 steps plus steps for the unmapped sites. The component ids are the ones the report proposed (`surveyor.TestSurveyor_AccountJetStreamAssets#js`).
+- **What the agent did:** four `apply` runs (one with `-component`) and four commits, touching 3 files (+30 −20). No hand edit, no applier code of its own. After every step `gofmt`, `go build`, `go vet`, `natsvet ./...` and the compilation of every test binary passed. At the end `natsvet -legacyjs.enable ./...` reported only the two unmapped sites.
+- **What it could not do:** run the tests that start a NATS server, because the sandbox refuses local port binding. They are the user's to run.
+
+The trial's findings, fixed here:
+- `apply` printed step ids, which change with every plan, but not the component ids the skill says to commit with. It now names each step's component.
+- A `component` step's composed edits replaced the whole merged range, so the dry-run diff showed an unchanged `if err != nil` block as removed and re-added. `composeBatches` now leaves out whole lines a range keeps at either end.
+- The skill now:
+  - takes a `natsvet ./...` baseline before the first step;
+  - says a printed function that is not a test (a helper) is exercised by its callers' tests, and to run every importing package when a component is done;
+  - says `natsvet -legacyjs.enable` exits 3 when it reports anything;
+  - says what to do with `natsvet-migrate.json` at the end;
+  - quotes ids, which contain `#`;
+  - writes the plan outside the module.
+
+Left as is:
+- The plan does not echo recorded answers; a component answer shows only as the question no longer being pending.
+- The migration keeps a bug nats-surveyor already had in `test.NewJetStreamCluster` (the `err` of `AccountInfo` is shadowed in its retry loop, which always breaks after one try). That is outside what a behavior-preserving migration should change.
+
 ## Open Questions
 
 - Length of the site-id hash: 6 hex digits make a collision between two different sites in one function about one in 16 million. This can be lengthened later without touching the specs, since the format is `@<hash>`.
