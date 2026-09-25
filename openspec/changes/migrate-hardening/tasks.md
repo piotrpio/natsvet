@@ -10,9 +10,10 @@
 - [ ] 2.3 Add the resume property over the testdata plan: after each `add-handle` step, plan a copy again and apply the new plan to the end. The result must equal the files of the uninterrupted chain. Verify: it fails today.
 - [ ] 2.4 Add the id tests:
   - a `component: skip` answer and a site-scoped `subscribe-target: push` answer on the lower of two stacked `Subscribe` calls (new `testdata/migrate/neighbors`);
-  - then insert an import and a function at the top of the file and plan again.
+  - then insert an import and a function at the top of the file and plan again;
+  - separately, rename the skipped component's function and plan again.
 
-  Verify: today the skip goes stale and the push answer moves to the other call.
+  Verify: today the skip goes stale and the push answer moves to the other call, and the rename falls back to `migrate` instead of failing.
 
 ## 3. gofmt-stable steps
 
@@ -24,7 +25,7 @@
 ## 4. The finish step and resuming
 
 - [ ] 4.1 Merge `remove-legacy` and `rename` into one `finish` step: the step kind, `waits_on`, `expectedResidue` in the test applier, and the goldens. Verify: `TestApplyTestdata` and `TestApplyRefusesChangedFile` pass, and the reviewed golden diff shows only merged steps.
-- [ ] 4.2 Recognize siblings, threaded flows and placeholders in the loaded tree (name, type and adjacency, as in design.md), and seed the simulation's sibling, `root:` and `placeholder:` marks from them. `add-handle` then plans only for handles and flows without a sibling. Verify: tests 2.2 and 2.3 pass.
+- [ ] 4.2 Recognize siblings, threaded flows and placeholders in the loaded tree, and seed the simulation's sibling, `root:` and `placeholder:` marks from them. A sibling has the same name and type as the one `add-handle` would declare: for a local, declared later in the same function scope; for a field, anywhere in the same struct; for a parameter, anywhere in the same parameter list. The connection is not checked. `add-handle` then plans only for handles and flows without a sibling. Verify: tests 2.2 and 2.3 pass, and so does the "Sibling after an inserted line" scenario (a log line inserted after the error check, and a moved field).
 - [ ] 4.3 Stop treating placeholder statements as sites or boundaries in the graph. Add the "Unrelated jetstream variable" case (a `jsNew` with no legacy `js` next to it) to testdata. Verify: the "Placeholder does not block" and "Unrelated jetstream variable" scenarios pass.
 
 ## 5. One-step components
@@ -36,32 +37,64 @@
 - [ ] 6.1 Pin step 0 to `go get github.com/nats-io/nats.go@<tableVersion>`. Verify: `TestStepZero` expects `@v1.53.1` for `testdata/migrate-old`. A new case for a newer nats.go expects no step 0 and the behavior-facts note.
 - [ ] 6.2 Leave unmapped sites out of every step, and drop steps left without sites. Verify: the golden has no step listing `migrate/legacyonly/legacyonly.go`'s unmapped site, and the site's `step` is empty.
 - [ ] 6.3 Record each site's enclosing function (`<pkg>.<Func>`, `<pkg>.<Type>.<Method>`, none at package level), and give components `functions` and `test_only`. Verify: tests for the three "Sites name their enclosing function" scenarios, and `migrate/legacytests` is test-only.
-- [ ] 6.4 Switch to the new ids (component: declaration and handle; site: function, symbol and text hash, with an ordinal only for identical texts). Move `natsvet-migrate.json` to version 2, and reject version 1 with a message naming the id formats. Verify: test 2.4 passes, the decisions tests use the new ids, and there is a version 1 rejection test.
+- [ ] 6.4 Switch to the new ids (component: declaration and handle; site: function, symbol and text hash, with an ordinal only for identical texts). Move `natsvet-migrate.json` to version 2, and reject version 1 with a message naming the id formats. Make a stale `component: skip` answer an error that names it; other stale answers stay reported. Verify: test 2.4 passes (including the renamed function now failing with the answer named), the decisions tests use the new ids, and there are tests for the version 1 rejection and the "Stale site answer after migration" scenario.
 - [ ] 6.5 List the covered component ids on the `component` pending decision, in place of the site count. Verify: a test for the "Component decision lists its components" scenario.
 - [ ] 6.6 Add step previews (`before`/`after` on `add-handle`, `finish` and `component` steps).
   - Markdown: each step once, the go-get step in its own section only, unmapped sites in their own section, the `component` question listing its components.
   - Extend `TestMarkdownMirrorsJSON` to require every step exactly once.
   - Verify: that test and the "Finish step preview" scenario pass.
-- [ ] 6.7 Set `schemaVersion` to 2. Verify: `TestSkillVersion` fails until 7.1, then passes.
+- [ ] 6.7 Set `schemaVersion` to 2. Verify: `TestSkillVersion` fails until 8.1, then passes.
 
-## 7. Skill and docs
+## 7. apply
 
-- [ ] 7.1 Rewrite `internal/migrate/SKILL.md` for schema 2:
-  - steps of one plan chain; gofmt is safe between steps;
-  - plan again after a hand edit, on a hash mismatch, or between components;
+- [ ] 7.1 Write the `apply` tests first, driving `Main([]string{"apply", ...})` on copies of testdata modules:
+  - next machine step;
+  - `-component` stopping at a guided step;
+  - `-dry-run` writing nothing;
+  - the go-get step printed for `testdata/migrate-old`;
+  - an unanswered `component` decision refused;
+  - rollback through a test hook that corrupts one edit of the selected step;
+  - nothing left to apply.
+
+  Verify: each fails with "unknown command" before 7.2.
+- [ ] 7.2 Move the test applier's splice and hash check (`applyStep`) into the package, and add the `apply` subcommand:
+  - plan flags plus `-component` and `-dry-run`;
+  - step selection and stops;
+  - the `component` decision check;
+  - the type-check of the touched packages with byte-for-byte rollback;
+  - the unified diff for `-dry-run`;
+  - the output (step, files, functions, next step).
+
+  Verify: the 7.1 tests pass, and `TestApplyTestdata` uses the shared splice.
+- [ ] 7.3 Migrate `testdata/migrate/guided` end to end with `apply` alone, the test writing the guided fixture between invocations. Verify: the final files equal those of the test applier's chain (task 2.2).
+- [ ] 7.4 Add `apply` to the migrate usage text and `natsvet help migrate`. Change the package doc and usage text so that `plan` never edits code and `apply` writes one step. Verify: the analyzer-framework help test still passes, and the usage lists `apply` with its flags.
+
+## 8. Skill and docs
+
+- [ ] 8.1 Rewrite `internal/migrate/SKILL.md` for schema 2 around `apply`:
+  - answer decisions with the user;
+  - `natsvet migrate apply ./...` for the next step, `-component <id>` for a component;
+  - hand-migrate guided sites to their templates, then plan again to see what is left;
+  - gofmt is safe between steps;
   - unmapped sites are reported, not rewritten;
   - `finish` and `component` steps;
-  - test with `go test -run` on the sites' functions, and the full package at component boundaries;
-  - component ids in commit messages.
+  - test with `go test -run` on the functions `apply` names, and the full package at component boundaries;
+  - component ids in commit messages;
+  - no teaching of byte-offset splicing.
 
-  Verify: `TestSkillVersion` passes, and a reading of the skill against a fresh plan of `testdata/migrate` finds no instruction the plan contradicts.
-- [ ] 7.2 Update `docs/design.md` §3.5 (the resumable plan, `finish` and `component` steps, schema 2) and §6, and name schema 2 in the `README` migrate section. Verify: `misspell` and a read-through.
+  Verify: `TestSkillVersion` passes, and a reading of the skill against a fresh plan of `testdata/migrate` finds no instruction the plan or `apply` contradicts.
+- [ ] 8.2 Update `docs/design.md`:
+  - §3.5: the resumable plan, `finish` and `component` steps, `apply`, schema 2; the next migration change covers threading through function results only;
+  - §6.
 
-## 8. Corpus and trial
+  Show `natsvet migrate apply` and name schema 2 in the `README` migrate section. Verify: `misspell` and a read-through.
 
-- [ ] 8.1 Run `scripts/migrate-corpus.sh` on go-choria, eventing-natss and natscli, and record counts next to the migrate-plan table in design.md, explaining every change in machine steps or components. Run `TestApplyCorpus` on natscli, with a re-plan after every step, in the env-gated test only. Verify: both pass, and 5 runs of each plan are byte-identical.
-- [ ] 8.2 Repeat the nats-surveyor trial end to end, with an agent following `natsvet migrate skill` and only the binary's plans (outside the sandbox: the module proxy). Record the steps applied, the re-plans and every hand edit in design.md under "Resolved during implementation". Verify: no hand-written applier logic beyond hash-checked splicing, no build break between steps, and `natsvet -legacyjs.enable ./...` reports only the unmapped sites.
+## 9. Corpus and trial
 
-## 9. Final checks
+- [ ] 9.1 Run `scripts/migrate-corpus.sh` on go-choria, eventing-natss and natscli, and record counts next to the migrate-plan table in design.md, explaining every change in machine steps or components. Run `TestApplyCorpus` on natscli, with a re-plan after every step, in the env-gated test only. Verify: both pass, and 5 runs of each plan are byte-identical.
+- [ ] 9.2 Repeat the nats-surveyor trial end to end, with an agent following `natsvet migrate skill` and `natsvet migrate apply` only (outside the sandbox: the module proxy). Record the `apply` runs, the plans and every hand edit in design.md under "Resolved during implementation". Verify: the agent writes no applier code, the build never breaks between steps, and `natsvet -legacyjs.enable ./...` reports only the unmapped sites.
 
-- [ ] 9.1 Run `make testdata-deps`, `make lint` (gofmt, go vet, staticcheck, misspell, license headers) and `go test ./...`, all clean.
+## 10. Final checks
+
+- [ ] 10.1 Run `make testdata-deps`, `make lint` (gofmt, go vet, staticcheck, misspell, license headers) and `go test ./...`, all clean.
+- [ ] 10.2 At archive, revise the Purpose of `openspec/specs/migration-planner/spec.md` so that `plan` never edits code and `apply` writes one step at a time. Verify: `openspec validate --strict` passes after the archive.

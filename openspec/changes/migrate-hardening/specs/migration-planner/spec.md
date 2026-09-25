@@ -2,7 +2,7 @@
 
 ### Requirement: Plans resume from the trees their own steps produce
 The planner SHALL recognize the state its own steps leave behind:
-- a legacy handle with a sibling of the new type named `<name>New` declared next to it (a local defined after the legacy root and its error check, or a field or parameter right after the legacy one);
+- a legacy handle with a sibling: a declaration named `<name>New`, of the new type, in the legacy handle's scope. For a local, it is declared later in the same function scope. For a field, it is anywhere in the same struct. For a parameter, it is anywhere in the same parameter list. The connection the sibling was created from is not checked.
 - the values threaded into the siblings;
 - `_ = <handle>` and `_ = <sibling>` placeholder lines.
 
@@ -16,12 +16,16 @@ Hand edits that move a site onto the sibling are part of that state. For a compo
 - **WHEN** a component's machine steps are applied, then its guided `PullSubscribe` site is rewritten by hand onto `jsNew` as the site's template shows, and the planner runs again
 - **THEN** the component is not blocked, and its `finish` step is a machine step. After it is applied, the module type-checks and `legacyjs` reports no use in the component.
 
+#### Scenario: Sibling after an inserted line
+- **WHEN** a log statement has been added between the legacy root's error check and `jsNew, err := jetstream.New(nc)`, and a struct's `jsNew` field has been moved to the end of the struct
+- **THEN** both siblings are recognized, and the plan has no `add-handle` step for them
+
 #### Scenario: Placeholder does not block
 - **WHEN** the only remaining use of a legacy handle `js` is the placeholder line `_ = js`
 - **THEN** the component is not marked blocked, and its `finish` step deletes the line
 
 #### Scenario: Unrelated jetstream variable
-- **WHEN** a function declares `jsNew, err := jetstream.New(nc)`, and no legacy handle named `js` is declared next to it
+- **WHEN** a function declares `jsNew, err := jetstream.New(nc)`, and no legacy handle named `js` is declared in its scope
 - **THEN** the planner treats `jsNew` as ordinary jetstream code: no step renames or removes it
 
 ### Requirement: Steps keep gofmt-clean files gofmt-clean
@@ -54,6 +58,54 @@ Every site SHALL name the function or method that encloses it, as `<pkg>.<Func>`
 - **WHEN** a site is the type of a package-level `var js nats.JetStreamContext`
 - **THEN** the site names no function
 
+### Requirement: The apply command applies one machine step and never leaves a broken tree
+`natsvet migrate apply [-component <id>] [-dry-run] [-decisions <file>] [-tests=<bool>] <packages>` SHALL plan the named packages in-process, exactly as `plan` would with the same flags, and then apply machine steps to the files:
+- Without `-component`, it applies the plan's next machine step.
+- With `-component`, it applies that component's machine steps in order, up to its first step that is not a machine step.
+
+It SHALL stop without writing, and say why, in these cases:
+- When the next step is the go-get command step, it prints the command and applies nothing.
+- When the next step of the component is guided, waits on sites, or carries decisions, it names the step and its sites.
+- When the step belongs to a component whose `component` decision is not answered `migrate` at component or module scope, it exits non-zero naming the pending question, since the steps' `migrate` assumption is a default the user has not confirmed.
+
+After writing, it SHALL load and type-check the packages that contain the touched files, tests included. On a type error, it SHALL restore every file it wrote byte for byte, and exit non-zero with the step id and the errors, since a step that does not compile is a planner bug.
+
+On success, it SHALL print:
+- the step id, its kind and its summary;
+- the files it changed;
+- the functions of the step's sites;
+- what the next step is.
+
+With `-dry-run`, it SHALL print the edits as a unified diff and write nothing. It SHALL NOT run `go get`, go vet, `natsvet` or tests, and SHALL NOT commit. `natsvet help migrate` SHALL list `apply` with its flags, next to `plan` and `skill`.
+
+#### Scenario: Next machine step
+- **WHEN** the first step of a plan is a machine `component` step, the `component` decision is answered `migrate` for the module, and `natsvet migrate apply ./...` runs
+- **THEN** exactly that step's edits are written, the module type-checks, and the output names the step, its files, its sites' functions and the next step
+
+#### Scenario: One component
+- **WHEN** `natsvet migrate apply -component app.Run#js ./...` runs on a component whose steps are `add-handle`, two mechanical site steps, a guided site step and `finish`
+- **THEN** `add-handle` and the two site steps are applied, and the output names the guided step and its site as the reason for stopping
+
+#### Scenario: Dry run
+- **WHEN** `natsvet migrate apply -dry-run ./...` runs
+- **THEN** it prints a unified diff of the next machine step, and no file changes
+
+#### Scenario: Step 0
+- **WHEN** the module requires an older nats.go
+- **THEN** apply prints `go get github.com/nats-io/nats.go@v1.53.1`, and applies nothing
+
+#### Scenario: Unanswered component decision
+- **WHEN** the next machine step belongs to a component, and `natsvet-migrate.json` answers `component` neither for it nor for the module
+- **THEN** apply exits non-zero, naming the pending `component` question, and no file changes
+
+#### Scenario: A step that does not compile
+- **WHEN** the planner emits a machine step whose edits do not type-check
+- **THEN** apply restores every file it wrote to its previous bytes, and exits non-zero, printing the step id and the type errors
+
+#### Scenario: Nothing left to apply
+- **WHEN** the plan has no machine step left
+- **THEN** apply exits 0 saying so, and names the remaining guided, decision and unmapped sites
+
 ## MODIFIED Requirements
 
 ### Requirement: The nats.go version is raised first when it is older than the table's
@@ -82,7 +134,9 @@ Ids SHALL NOT be positions:
 
 An edit outside a site or component therefore leaves its id unchanged, and a site's id changes only when its own text does.
 
-The planner SHALL NOT write the file. A site whose decisions are all answered is reclassified by the chosen option (mechanical or guided, with its replacement or template), and answered patterns no longer appear as pending. A component answered `skip` SHALL keep its sites out of the steps, be counted separately, and block the removal of any declaration it shares with a migrated component. An answer naming an unknown pattern, option or scope SHALL be an error, and so SHALL a file of another version, with a message naming the id formats. An answer whose scope no longer exists SHALL be reported. Given the same packages and the same answers, the plan SHALL be byte-identical, including the order of every list of facts and notes.
+The planner SHALL NOT write the file. A site whose decisions are all answered is reclassified by the chosen option (mechanical or guided, with its replacement or template), and answered patterns no longer appear as pending. A component answered `skip` SHALL keep its sites out of the steps, be counted separately, and block the removal of any declaration it shares with a migrated component. An answer naming an unknown pattern, option or scope SHALL be an error, and so SHALL a file of another version, with a message naming the id formats. An answer whose scope no longer exists is stale:
+- A stale `component` answer choosing `skip` SHALL be an error naming the answer. A skipped component never migrates, so its id can only disappear because its code changed, and falling back to the module answer would migrate code the user chose to keep.
+- Every other stale answer SHALL be reported, and the plan continues. Typically it names a site that has already migrated. Given the same packages and the same answers, the plan SHALL be byte-identical, including the order of every list of facts and notes.
 
 #### Scenario: One answer covers many sites
 - **WHEN** twelve `Subscribe` sites are pending and `natsvet-migrate.json` answers `subscribe-target` with `pull` for the module
@@ -99,6 +153,14 @@ The planner SHALL NOT write the file. A site whose decisions are all answered is
 #### Scenario: Answer survives an edit above it
 - **WHEN** the file answers `component` with `skip` for `component:app.Run#js`, and an import and a function are then added above `Run` in its file
 - **THEN** the next plan still skips that component and reports no stale answer
+
+#### Scenario: Stale skip
+- **WHEN** the file answers `component` with `skip` for `component:app.Run#js`, and `Run` has since been renamed `Start`
+- **THEN** the command exits non-zero, naming the answer, and prints no plan
+
+#### Scenario: Stale site answer after migration
+- **WHEN** a site answered `push` by its site id has been migrated
+- **THEN** the answer is reported as stale, and the plan is produced
 
 #### Scenario: Neighboring sites keep their own answers
 - **WHEN** two `Subscribe` calls on consecutive lines of one function have different text, the lower one is answered `push` by its site id, and a line is inserted above both
@@ -200,10 +262,13 @@ Each step SHALL be shown once, with the before and after of its sites. The `add-
 
 The skill SHALL name the schema version it understands, and SHALL describe the agent loop:
 1. Answer the pending decisions with the user, and record them in `natsvet-migrate.json`.
-2. Apply the steps of one plan in order, since each step expects the tree the previous one leaves.
-3. Run gofmt and build, run `natsvet ./...`, and run the tests of the functions the step's sites name.
-4. Commit.
-5. Plan again after a hand edit, when a step's recorded hash does not match, or between components.
+2. Apply the next machine step with `natsvet migrate apply`, rather than splicing the plan's edits by hand.
+3. Rewrite guided sites by hand, following their templates.
+4. Run gofmt and go vet, run `natsvet ./...`, and run the tests of the functions the step's sites name.
+5. Commit.
+6. Plan again after a hand edit, to see what is left.
+
+The JSON edits and hashes remain the documented contract for any other tool that applies them.
 
 #### Scenario: Schema version in both
 - **WHEN** a plan is produced

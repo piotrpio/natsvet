@@ -35,6 +35,7 @@ The testdata packages `migrate/multifile` and `migrate/order` cover these, toget
   - apply some steps (or migrate some guided sites by hand), plan again, and apply the new plan to the end.
 - Every intermediate tree a plan reaches compiles, is gofmt-clean if it started so, and can be planned again.
 - The sibling sequence becomes invisible where it adds nothing.
+- An agent applies steps with `natsvet migrate apply` and writes no applier code of its own.
 
 **Non-Goals:**
 - Recognizing partial migrations that do not follow the step shapes (a sibling under another name, a sibling in another scope).
@@ -44,9 +45,11 @@ The testdata packages `migrate/multifile` and `migrate/order` cover these, toget
 
 **Resume by seeding the simulation from the loaded tree.**
 - *Recognition.* After the graph is built, the planner looks for the sibling of each threadable handle `h`: an object named `h.sibling` of type `h.newType`. Where it counts as a sibling:
-  - for a local, in the same function scope, defined by an assignment after the legacy root's statement and error check;
-  - for a field, in the same struct;
-  - for a parameter, in the same parameter list.
+  - for a local, declared later in the same function scope than the legacy declaration;
+  - for a field, anywhere in the same struct;
+  - for a parameter, anywhere in the same parameter list.
+
+  The connection the sibling was created from is not checked. Exact adjacency was rejected in the grill: a log line inserted by hand, or a field moved while resolving a merge, would make the planner miss the sibling and plan a second `add-handle`, which is bug 1 again. Checking the connection would mean tracking connection expressions through flows, and would guard only against a coincidental `jsNew` of the right type on another connection.
 
   It also recognizes:
   - placeholders: `_ = <ident>` statements whose identifier is a handle or a recognized sibling;
@@ -110,7 +113,8 @@ The testdata packages `migrate/multifile` and `migrate/order` cover these, toget
   - Sites of identical text in one function are numbered `.2`, `.3` in source order.
 - *Why a text hash, not an ordinal.* Ordinals shift when an earlier site with the same symbol migrates, and a site-scoped answer would then silently move to the next site. A text hash changes only when the site itself changes, which is when its answer should be asked again.
 - *Other ids.* Step ids stay per-plan sequence numbers (`S0`…). The skill tells agents to quote component ids in commit messages.
-- *Decisions file.* It goes to version 2, and a version 1 file is rejected with the new id formats in the message.
+- *Decisions file.* It goes to version 2, and a version 1 file is rejected with the new id formats in the message. Converting v1 files was rejected: position ids cannot be matched once the tree has changed, and the only v1 files come from the nats-surveyor trial.
+- *Stale answers.* A stale `component:<id>` answer choosing `skip` makes `plan` and `apply` fail, naming the answer. A skipped component never migrates, so its id disappears only when its code changed (a renamed handle or function), and falling back to the module answer would migrate what the user chose to keep. Every other stale answer is reported as today. Most often it is a site-scoped answer whose site has already migrated, which is routine progress. Failing on every stale answer would make each such migration break the next plan.
 - *Alternative:* keep position ids and warn louder about stale answers — rejected. It leaves the neighbor capture: a line inserted above two stacked subscribe calls moves the lower call onto the upper call's old position, and it inherits that call's answer with nothing reported.
 
 **Enclosing functions and test-only components.**
@@ -126,14 +130,35 @@ The testdata packages `migrate/multifile` and `migrate/order` cover these, toget
 - `add-handle`'s preview therefore shows the placeholder lines.
 - The go-get step is rendered once, in its own section, not again under "Sites outside components".
 
+**A minimal `apply` that plans in-process.**
+- *Selection.* `natsvet migrate apply` builds the plan exactly as `plan` does, with the same flags and `natsvet-migrate.json`, then selects its work:
+  - without `-component`, the first machine step in plan order;
+  - with `-component <id>`, that component's machine steps in order, up to its first step that is not a machine step.
+- *Writing.* It writes each step's edits from the in-memory plan, checking each file's recorded hash against the bytes it is about to replace. That check guards only against a file changing between the load and the write. Because every invocation plans afresh, hashes never go stale between invocations, and no plan file exists to manage.
+- *Why re-planning is enough.* That is possible only because of the resume decision above. After a step is written, the next invocation's plan starts where the tree now stands, including after a guided site the agent migrated by hand.
+- *Stops.*
+  - The go-get command step is printed, not run: it needs the module proxy and edits `go.mod`, which is the agent's and the user's call.
+  - A guided, waiting or decision step ends a `-component` run, with the step and its sites named.
+  - A step of a component whose `component` decision is unanswered (neither component nor module scope) is refused. Machine steps never contain undecided sites, but the `component` default of `migrate` is exactly the assumption the skill forbids an agent to make on the user's behalf.
+- *Rollback.* After writing, `apply` loads the packages that contain the touched files, tests included, and type-checks them. On an error it writes back the original bytes it held in memory, and exits non-zero with the step id and the errors. A step that does not compile is a planner bug, and the agent then gets a refused step and a report, not a broken tree.
+- *Dry run.* `-dry-run` prints a unified diff of the selected edits and writes nothing.
+- *Output.* It names the step, the files, the sites' functions (for `go test -run`) and the next step. When nothing is left, it names the remaining guided, decision and unmapped sites.
+- *Code.* The test applier's splice (`applyStep`) moves into the package and is shared by `apply` and the tests. The rest is flag parsing and the type-check.
+- *Alternatives:*
+  - An `apply` that reads a plan file and step ids, the test applier promoted as is — rejected. The agent would still manage plan files and re-plan itself, and the hash chain would still break on any hand edit in between.
+  - Leaving `apply` to the next change — rejected in the grill. The applier each agent writes for itself was the least deterministic part of the trial, and after this change `apply` is small.
+  - Running `go get`, go vet or tests inside `apply` — rejected. They need network access or take minutes, and the agent's loop already runs them with the user's permissions.
+
 **Schema 2 and the skill.**
-- `schemaVersion` becomes 2. `SKILL.md` is rewritten around the chain:
-  - apply one plan's steps in order;
+- `schemaVersion` becomes 2. `SKILL.md` is rewritten around `apply`:
+  - answer the decisions with the user;
+  - run `natsvet migrate apply ./...` for the next step, or `-component <id>` for a whole component;
+  - migrate guided sites by hand to their templates, and plan again to see what is left;
   - gofmt freely, since steps are gofmt-stable;
-  - plan again after a hand edit, on a hash mismatch, or between components;
   - never type an unmapped site;
-  - test with `go test -run` over the functions of the step's sites, and run the package's full tests at component boundaries;
+  - test with `go test -run` over the functions `apply` names, and run the package's full tests at component boundaries;
   - commit a `component` step, or a component's steps, with its component id in the message.
+- The skill no longer teaches splicing byte offsets. The JSON's edits and hashes stay the documented contract, in the plan's help, for other tools.
 
 **Verification is by properties on the test applier (`apply_test.go`), on top of its per-step type-check:**
 - *gofmt:* a file that was gofmt-clean before a step is gofmt-clean after it.
@@ -142,22 +167,28 @@ The testdata packages `migrate/multifile` and `migrate/order` cover these, toget
   - Per-step resume over the whole testdata plan would re-plan about 130 times, so it runs only in the env-gated corpus test.
 - *Ids:* the test inserts lines at the top of a testdata file, plans again, and expects every id to be unchanged.
 - *Neighbors:* two stacked subscribe calls, one answered by site id, keep their answers after the insertion.
+- *`apply`:* a testdata component is migrated end to end by calling `Main([]string{"apply", ...})` repeatedly, with the guided fixture written by the test in between. It must reach the same files as the test applier's chain.
+  - Each stop (the go-get step, a guided step, an unanswered `component` decision) has its own case.
+  - Rollback is exercised through a test hook that corrupts one edit of the selected step. The test checks that every file is back to its original bytes.
 
 ## Risks / Trade-offs
 
 - [Recognition misfires on hand-written code shaped like a sibling (a `jsNew` of the new type next to `js`, from the same connection)] → The only effect is that `finish` removes `js` and renames `jsNew`, which is the migration the plan was about to do anyway. The "Unrelated jetstream variable" scenario pins the case with no legacy counterpart.
 - [An agent deletes a placeholder by hand] → The local becomes unused and the build fails at once, so the skill's build step surfaces it. The skill keeps saying not to remove them.
 - [A composition bug emits edits that type-check but differ from the sequential batches] → The simulation's check compares composed edits with the sequential result on every step and fails the plan. The applier tests type-check every step.
-- [gofmt output changes between Go releases] → The formatting batch is computed with the `go/format` of the Go that built natsvet, so a plan made with a different gofmt produces a hash mismatch, and the skill says to re-plan on one.
+- [gofmt output changes between Go releases] → The formatting batch is computed with the `go/format` of the Go that built natsvet, so a tool applying a plan's JSON edits after running a different gofmt sees a hash mismatch and has to plan again. `apply` plans afresh on every run, so it is unaffected.
 - [A text-hash site id changes when an agent touches the site without migrating it] → The answer is reported stale, which is right: it was given for different code.
 - [Merging remove and rename makes `finish` a larger diff] → It is one mechanical rename, and the step preview shows it.
+- [`apply`'s type-check passes but go vet, `natsvet` or the tests would fail] → The type-check catches what the planner can get wrong mechanically. Behavior and vet findings are the agent loop's to check, and the skill keeps those steps after every `apply`.
+- [`apply` runs while the user has unrelated uncommitted edits] → It plans from the files as they are, so those edits are neither overwritten nor reverted. It writes only the step's files, and a rollback restores exactly the bytes it read.
 - [Schema 2 invalidates the nats-surveyor trial's plan and answers] → That trial is the only known user, and the rejection message names the new id formats.
 
 ## Migration Plan
 
 - The binary emits schema 2 only, and reads decisions files of version 2 only. Plans are unreleased (no tag), so there is no compatibility window.
-- `docs/design.md` §3.5 describes the resumable plan and the `finish` and `component` steps.
-- `README` names schema 2.
+- `docs/design.md` §3.5 describes the resumable plan, the `finish` and `component` steps and `apply`. The next change in the migration family becomes threading handles through function results only.
+- `README` shows `natsvet migrate apply` and names schema 2.
+- At archive, the main spec's Purpose ("it plans; it never edits code") is revised to cover `apply`.
 - Rollback is reverting the change: schema 1 plans come back with it.
 
 ## Open Questions
