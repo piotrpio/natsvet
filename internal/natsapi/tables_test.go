@@ -18,6 +18,7 @@ import (
 	"go/ast"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -81,6 +82,7 @@ func TestHeader(t *testing.T) {
 		{"NATS-MSG-ID", "Nats-Msg-Id", HeaderConst{JetStream, "MsgIDHeader"}, true},
 		{"Nats-Msg-Id", "Nats-Msg-Id", HeaderConst{JetStream, "MsgIDHeader"}, true},
 		{"nats-service-error", "Nats-Service-Error", HeaderConst{Micro, "ErrorHeader"}, true},
+		{"nats-upto-sequence", "Nats-UpTo-Sequence", HeaderConst{}, true},
 		{"x-request-id", "", HeaderConst{}, false},
 		{"", "", HeaderConst{}, false},
 	}
@@ -90,10 +92,30 @@ func TestHeader(t *testing.T) {
 			if ok != tt.ok || canonical != tt.canonical {
 				t.Fatalf("Header(%q) = (%q, %v, %v), want (%q, _, %v)", tt.key, canonical, consts, ok, tt.canonical, tt.ok)
 			}
-			if ok && consts[0] != tt.first {
-				t.Errorf("first constant = %v, want %v", consts[0], tt.first)
+			switch {
+			case ok && tt.first == (HeaderConst{}) && len(consts) != 0:
+				t.Errorf("constants = %v, want none for a server-only header", consts)
+			case ok && tt.first != (HeaderConst{}) && (len(consts) == 0 || consts[0] != tt.first):
+				t.Errorf("constants = %v, want %v first", consts, tt.first)
 			}
 		})
+	}
+}
+
+func TestKnownHeaders(t *testing.T) {
+	known := KnownHeaders()
+	if !slices.IsSorted(known) || len(slices.Compact(slices.Clone(known))) != len(known) {
+		t.Fatalf("KnownHeaders() is not sorted and unique: %v", known)
+	}
+	for h := range headers {
+		if _, found := slices.BinarySearch(known, h); !found {
+			t.Errorf("KnownHeaders() lacks the nats.go header %q", h)
+		}
+	}
+	for _, h := range serverHeaders {
+		if _, found := slices.BinarySearch(known, h); !found {
+			t.Errorf("KnownHeaders() lacks the nats-server header %q", h)
+		}
 	}
 }
 

@@ -15,7 +15,7 @@
 // packages, callees and methods by import path, reading constant arguments,
 // and the tables of NATS header names and legacy JetStream symbols generated
 // from the pinned nats.go.
-//go:generate go run ../tablegen/cmd -testdata ../../testdata -out .
+//go:generate go run ../tablegen/cmd -testdata ../../testdata -server "$NATS_SERVER_DIR" -out .
 
 package natsapi
 

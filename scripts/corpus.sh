@@ -14,7 +14,9 @@ INVENTORY="legacyjs"
 
 ACTUAL=$(mktemp)
 WANT=$(mktemp)
-trap 'rm -f "$ACTUAL" "$WANT"' EXIT
+HDRS=$(mktemp -d)
+trap 'rm -rf "$ACTUAL" "$WANT" "$HDRS"' EXIT
+status=0
 
 # Every -<rule>.enable flag the binary exposes, minus the inventory rules.
 optin_flags() {
@@ -83,6 +85,13 @@ INV=$(inventory_flags)
 	echo "inventory: $name/$subdir legacyjs=$n" >&2
 done
 
+# headerkey's nats-server header list must match the pinned nats-server.
+(cd "$HERE/.." && go run ./internal/tablegen/cmd -only server -server "$CORPUS_DIR/nats-server" -out "$HDRS")
+if ! diff -u "$HERE/../internal/natsapi/server_headers_table.go" "$HDRS/server_headers_table.go" >&2; then
+	echo "corpus: internal/natsapi/server_headers_table.go does not match the pinned nats-server; run NATS_SERVER_DIR=$CORPUS_DIR/nats-server make generate" >&2
+	status=1
+fi
+
 sort -o "$ACTUAL" "$ACTUAL"
 { grep -v '^\s*#' "$HERE/corpus.expected" || true; } | { grep -v '^\s*$' || true; } | sed -E 's/[[:space:]]+# (TP|FP)(:.*)?$//' | sort >"$WANT"
 
@@ -91,3 +100,4 @@ if ! diff -u "$WANT" "$ACTUAL" >&2; then
 	exit 1
 fi
 echo "corpus: $(wc -l <"$ACTUAL" | tr -d ' ') findings, all triaged"
+exit "$status"

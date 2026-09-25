@@ -15,6 +15,7 @@ package natsapi
 
 import (
 	"go/types"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -28,23 +29,41 @@ type HeaderConst struct {
 var (
 	headersOnce  sync.Once
 	headersLower map[string]string
+	headersKnown []string
 )
 
+func indexHeaders() {
+	headersLower = make(map[string]string, len(headers)+len(serverHeaders))
+	for _, h := range serverHeaders {
+		headersLower[strings.ToLower(h)] = h
+	}
+	for h := range headers {
+		headersLower[strings.ToLower(h)] = h
+	}
+	for _, h := range headersLower {
+		headersKnown = append(headersKnown, h)
+	}
+	slices.Sort(headersKnown)
+}
+
 // Header looks key up case-insensitively among the headers nats.go defines
-// and returns the canonical spelling and the constants that define it, in
-// fix preference order (jetstream, nats, micro).
+// and the headers nats-server uses, and returns the canonical spelling and
+// the nats.go constants that define it, in fix preference order (jetstream,
+// nats, micro); a header only nats-server uses has no constants.
 func Header(key string) (canonical string, consts []HeaderConst, ok bool) {
-	headersOnce.Do(func() {
-		headersLower = make(map[string]string, len(headers))
-		for h := range headers {
-			headersLower[strings.ToLower(h)] = h
-		}
-	})
+	headersOnce.Do(indexHeaders)
 	canonical, ok = headersLower[strings.ToLower(key)]
 	if !ok {
 		return "", nil, false
 	}
 	return canonical, headers[canonical], true
+}
+
+// KnownHeaders returns the canonical names of every header Header knows,
+// sorted.
+func KnownHeaders() []string {
+	headersOnce.Do(indexHeaders)
+	return slices.Clone(headersKnown)
 }
 
 // LegacySymbol returns the qualified name of obj ("nats.JetStreamContext",
