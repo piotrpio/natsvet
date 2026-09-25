@@ -111,6 +111,23 @@ mirrors a server or client validation cites the function it mirrors in its spec 
 `openspec/specs/`. Each rule handles both the `jetstream` types and their legacy
 `nats` twins.
 
+## Migrating off the legacy JetStream API
+
+`legacyjs` counts the legacy API; `natsvet migrate` plans the move to the `jetstream`
+package:
+
+```sh
+natsvet migrate plan ./...                    # JSON plan
+natsvet migrate plan -format markdown ./...   # the same plan as a guide
+natsvet migrate skill                         # instructions for an agent following the plan
+```
+
+The plan classifies every legacy site as mechanical (exact replacement and byte-offset
+edits), guided (a template and the facts it needs), a decision for the user (with a
+behavior-preserving default), or unmapped, and orders the work into steps after each of
+which the module compiles. Answers to its decisions go in `natsvet-migrate.json` at the
+module root. The planner never edits code.
+
 ## Corpus
 
 Unit tests prove a rule fires on code written to trigger it. The corpus proves it stays

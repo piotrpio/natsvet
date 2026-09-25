@@ -696,6 +696,24 @@ can track their own progress.
   finding.
 - **Tests**: one use of each listed symbol (bad), the `jetstream` twin of each (ok).
 
+### 3.5 Migration planner (`natsvet migrate`)
+
+The migration family moves a module off the legacy API. It is not a rule: a rewrite
+crosses packages, needs the user's decisions, and must keep the module compiling
+between steps, none of which fits a per-package analyzer or a `SuggestedFix`.
+
+- **`migrate-plan`** (implemented): `natsvet migrate plan ./...` loads the module as one
+  program and writes a versioned JSON plan (or `-format markdown`): every legacy site
+  classified mechanical (exact text and byte-offset edits), guided (a template and the
+  facts it needs), decision (options, a behavior-preserving default, the reason) or
+  unmapped (the reason); components of connected handles migrated in a dual-handle order
+  (a `<name>New` sibling, the sites, removal, rename) that compiles after every step;
+  follow-ups. Answers live in `natsvet-migrate.json` at the module root; `natsvet migrate
+  skill` prints the agent skill that follows the plan. It never edits code.
+- **`migrate-apply`** (next): `natsvet migrate apply` executes a plan's machine steps with
+  the same hash checks the test-only applier uses today, and threads handles through
+  function results, the largest gap the corpus showed.
+
 ## 4. Testing
 
 ### 4.1 Unit tests per rule
@@ -814,8 +832,13 @@ corpus-driven corrections live.
    key sites (header literal keys, comparisons with a header range key). The corpus
    added 2 lines, both `TP`: go-choria's `Nats-TTLSeconds` and natscli's
    `Nats-UpTo-Sequnce`.
-9. Later, separate designs: migration rewrites (legacy → `jetstream`), orbit.go
-   recommendation rules, orbit.go API rules.
+9. **`migrate-plan`** (implemented): §8 item 6 — `natsvet migrate plan` and `natsvet
+   migrate skill` (§3.5). The test-only applier applies every machine step of the testdata
+   plan with a type-check after each; on natscli, go-choria and eventing-natss the plans
+   are exact about what is left but mostly guided, because their handles come from
+   runtime options, interface methods and test doubles.
+10. Later, separate designs: `migrate-apply`, orbit.go recommendation rules, orbit.go API
+    rules.
 
 ## 7. Code conventions for the implementing repository
 
@@ -843,10 +866,9 @@ corpus-driven corrections live.
 5. Whether `headerkey` should also flag a `Get` literal that differs only in case from a
    `Set` literal elsewhere in the same package (needs a package-wide pre-pass; cheap, but
    deferred until there is evidence it happens).
-6. Migration rewrites: every `jetstream` method takes a `context.Context` and no legacy
-   method does, so a rewrite is never a local `SuggestedFix`; it needs per-function
-   reasoning about where a context comes from. Likely a separate `natsvet migrate`
-   driver with a report, not `go fix`. Design when `legacyjs` numbers exist.
+6. ~~Migration rewrites.~~ Done as a planner, not a `SuggestedFix`: `natsvet migrate plan`
+   (§3.5) takes the context from the scope, then `nats.Context`, then
+   `context.Background()`, whose 5s default timeout equals legacy's.
 7. Which orbit.go APIs warrant rules of their own (§1, item 3). Survey after the corpus
    run.
 8. ~~Legacy `js.Subscribe*(subj, nats.Bind(stream, consumer))` with a non-empty

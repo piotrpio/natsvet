@@ -14,7 +14,9 @@
 // Command natsvet runs the natsvet analyzers. It works standalone
 // (natsvet ./..., natsvet -fix ./...), as go vet -vettool=natsvet, and as
 // go fix -fixtool=natsvet. natsvet -version prints the build's module
-// version and revision.
+// version and revision. natsvet migrate plans the move off the legacy
+// JetStream API (natsvet migrate plan ./...) and prints the agent skill
+// that follows the plan (natsvet migrate skill).
 package main
 
 import (
@@ -24,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/piotrpio/natsvet"
+	"github.com/piotrpio/natsvet/internal/migrate"
 	"golang.org/x/tools/go/analysis/multichecker"
 )
 
@@ -31,6 +34,11 @@ func main() {
 	if len(os.Args) == 2 && (os.Args[1] == "-version" || os.Args[1] == "--version") {
 		fmt.Println(version())
 		return
+	}
+	// go vet and go fix pass flags and package config files, never
+	// "migrate", first.
+	if len(os.Args) >= 2 && os.Args[1] == "migrate" {
+		os.Exit(migrate.Main(os.Args[2:], os.Stdout, os.Stderr))
 	}
 	multichecker.Main(natsvet.All()...)
 }
